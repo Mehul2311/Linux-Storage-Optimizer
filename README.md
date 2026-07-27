@@ -66,13 +66,13 @@ node-sanity/
 Clone the repository:
 
 ```bash
-git clone https://github.com//node-sanity.git
+https://github.com/Mehul2311/Linux-Storage-Optimizer-.git
 ```
 
 Move into the project directory:
 
 ```bash
-cd node-sanity
+cd linux-storage-optimizer
 ```
 
 More setup instructions will be added as the project progresses.
