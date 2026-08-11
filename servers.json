@@ -1,0 +1,26 @@
+[
+  {
+    "id": "srv-01",
+    "name": "Project Folder",
+    "hostname": "localhost",
+    "base_path": ".",
+    "owner_team": "you",
+    "enabled": true
+  },
+  {
+    "id": "srv-02",
+    "name": "Downloads",
+    "hostname": "localhost",
+    "base_path": "C:/Users/Mehul Kumar Sharma/Downloads",
+    "owner_team": "you",
+    "enabled": true
+  },
+  {
+    "id": "srv-03",
+    "name": "Desktop",
+    "hostname": "localhost",
+    "base_path": "C:/Users/Mehul Kumar Sharma/Desktop",
+    "owner_team": "you",
+    "enabled": true
+  }
+]

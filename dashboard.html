@@ -1,0 +1,1493 @@
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+  <meta charset="UTF-8">
+  <title>Node Sanity - Disk Analyzer</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --panel: #151b23;
+      --panel-alt: #1c232d;
+      --border: #2a323d;
+      --text: #e6edf3;
+      --text-dim: #9aa4af;
+      --accent: #3fb950;
+      --accent-dim: #2ea043;
+      --accent-glow: rgba(63, 185, 80, 0.35);
+      --danger: #f85149;
+      --info: #58a6ff;
+    }
+
+    * { box-sizing: border-box; }
+
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(14px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes fadeInLeft {
+      from { opacity: 0; transform: translateX(-10px); }
+      to { opacity: 1; transform: translateX(0); }
+    }
+    @keyframes pulseGlow {
+      0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+      50% { box-shadow: 0 0 0 8px rgba(63, 185, 80, 0); }
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes dots {
+      0% { content: ""; } 25% { content: "."; } 50% { content: ".."; } 75% { content: "..."; }
+    }
+    @keyframes shimmer {
+      0% { background-position: -400px 0; }
+      100% { background-position: 400px 0; }
+    }
+    @keyframes countIn {
+      from { opacity: 0; transform: scale(0.85); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    body {
+      font-family: 'SF Mono', 'Consolas', 'Menlo', monospace;
+      background: radial-gradient(circle at 20% 0%, #121a24 0%, var(--bg) 55%);
+      color: var(--text);
+      margin: 0;
+      padding: 32px;
+      font-size: 16px;
+      animation: fadeInUp 0.4s ease;
+      position: relative;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        to bottom,
+        rgba(63, 185, 80, 0.015) 0px,
+        rgba(63, 185, 80, 0.015) 1px,
+        transparent 1px,
+        transparent 3px
+      );
+      z-index: 1000;
+    }
+
+    .header {
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 18px;
+      animation: fadeInUp 0.4s ease;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .nav-link {
+      color: var(--info);
+      text-decoration: none;
+      font-size: 14px;
+      padding: 8px 14px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      transition: border-color 0.2s ease, background 0.2s ease;
+      white-space: nowrap;
+    }
+    .nav-link:hover { border-color: var(--info); background: rgba(88,166,255,0.08); }
+
+    h1 {
+      color: var(--text);
+      font-size: 28px;
+      font-weight: 700;
+      margin: 0 0 6px 0;
+      letter-spacing: -0.3px;
+      background: linear-gradient(90deg, var(--text) 0%, var(--accent) 120%);
+      -webkit-background-clip: text;
+      background-clip: text;
+    }
+
+    .subtitle { color: var(--text-dim); font-size: 15px; }
+
+    /* ---------- Controls ---------- */
+    #controls {
+      margin-bottom: 20px;
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      animation: fadeInUp 0.5s ease 0.05s both;
+    }
+
+    select, #folderInput {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 11px 14px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-family: inherit;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.1s ease;
+    }
+
+    select:hover, #folderInput:hover { border-color: var(--accent-dim); }
+    select:focus, #folderInput:focus {
+      outline: none;
+      border-color: var(--accent-dim);
+      box-shadow: 0 0 0 3px rgba(63, 185, 80, 0.15);
+    }
+
+    #folderInput { width: 260px; }
+
+    #scanBtn {
+      background: var(--accent);
+      color: var(--bg);
+      border: none;
+      padding: 11px 26px;
+      font-size: 15px;
+      font-weight: 700;
+      border-radius: 6px;
+      cursor: pointer;
+      font-family: inherit;
+      transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+    }
+
+    #scanBtn:hover { background: var(--accent-dim); box-shadow: 0 4px 18px var(--accent-glow); transform: translateY(-1px); }
+    #scanBtn:active { transform: scale(0.96); }
+    #scanBtn:disabled {
+      background: var(--border);
+      color: var(--text-dim);
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+      animation: pulseGlow 1.4s ease-in-out infinite;
+    }
+
+    .spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid rgba(13,17,23,0.35);
+      border-top-color: var(--bg);
+      border-radius: 50%;
+      margin-right: 8px;
+      vertical-align: middle;
+      animation: spin 0.7s linear infinite;
+    }
+
+    #status {
+      margin-bottom: 20px;
+      color: var(--text-dim);
+      font-size: 14px;
+      min-height: 18px;
+      transition: color 0.2s ease;
+    }
+    #status.error { color: var(--danger); }
+    #status.loading::after { content: ""; animation: dots 1.2s steps(4, end) infinite; }
+
+    /* ---------- Stat cards ---------- */
+    #statGrid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 14px;
+      margin-bottom: 20px;
+    }
+
+    .stat-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px 18px;
+      animation: fadeInUp 0.4s ease both;
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .stat-card:nth-child(1) { animation-delay: 0.05s; }
+    .stat-card:nth-child(2) { animation-delay: 0.10s; }
+    .stat-card:nth-child(3) { animation-delay: 0.15s; }
+    .stat-card:nth-child(4) { animation-delay: 0.20s; }
+
+    .stat-card:hover {
+      transform: translateY(-3px);
+      border-color: var(--accent-dim);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.35);
+    }
+
+    .stat-label {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      color: var(--text-dim);
+      margin-bottom: 8px;
+    }
+
+    .stat-value {
+      font-size: 24px;
+      font-weight: 700;
+      color: var(--text);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      animation: countIn 0.3s ease both;
+    }
+
+    /* ---------- Largest file AI box ---------- */
+    #largestBox {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--accent);
+      padding: 20px 22px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      display: none;
+      animation: fadeInLeft 0.4s ease both;
+    }
+
+    #largestBox .tag {
+      display: inline-block;
+      background: rgba(63, 185, 80, 0.15);
+      color: var(--accent);
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      padding: 4px 10px;
+      border-radius: 4px;
+      margin-bottom: 12px;
+      font-weight: 700;
+    }
+
+    #largestBox p { margin: 8px 0; font-size: 15px; line-height: 1.6; }
+    #largestName { color: var(--text); font-weight: 700; font-size: 17px; }
+    #largestPath { color: var(--text-dim); word-break: break-all; font-size: 13px; }
+    #largestSize { color: var(--text); font-weight: 700; }
+    #largestMeta { color: var(--text-dim); font-size: 13px; }
+    #largestReason { color: var(--text); }
+    #largestReason::before { content: "→ "; color: var(--accent); }
+
+    /* ---------- Filter bar ---------- */
+    #filterBar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      animation: fadeInUp 0.4s ease 0.1s both;
+    }
+    #filterBar label { color: var(--text-dim); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+    #filterBar select { padding: 8px 12px; font-size: 13px; }
+    #resultCount {
+      color: var(--text-dim);
+      font-size: 13px;
+      margin-left: auto;
+      transition: opacity 0.2s ease;
+    }
+
+    /* ---------- Layout ---------- */
+    #layout {
+      display: flex;
+      gap: 18px;
+      align-items: flex-start;
+    }
+
+    #leftPanel {
+      flex: 1;
+      min-width: 0;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+      animation: fadeInUp 0.4s ease 0.15s both;
+    }
+
+    #chartPanel {
+      width: 380px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      padding: 22px;
+      border-radius: 8px;
+      flex-shrink: 0;
+      animation: fadeInUp 0.4s ease 0.2s both;
+    }
+
+    .panel-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      color: var(--text-dim);
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      font-weight: 700;
+    }
+
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; padding: 13px 18px; border-bottom: 1px solid var(--border); font-size: 14px; }
+    th { background: var(--panel-alt); color: var(--text-dim); font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+    tr:last-child td { border-bottom: none; }
+
+    tbody tr {
+      animation: fadeInLeft 0.35s ease both;
+      transition: background 0.15s ease;
+    }
+    tbody tr:hover td { background: var(--panel-alt); }
+
+    td.size-cell { color: var(--accent); font-weight: 700; white-space: nowrap; }
+    td.path-cell { color: var(--text); font-weight: 600; }
+    td.path-cell .folder-path { display: block; color: var(--text-dim); font-weight: 400; font-size: 12px; margin-top: 3px; }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 10px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+    }
+    .badge-owner { background: rgba(88, 166, 255, 0.15); color: var(--info); }
+    .badge-type-log { background: rgba(88, 166, 255, 0.15); color: var(--info); }
+    .badge-type-cache { background: rgba(219, 109, 40, 0.18); color: #d29922; }
+    .badge-type-backup { background: rgba(163, 113, 247, 0.18); color: #a371f7; }
+    .badge-type-iso { background: rgba(248, 81, 73, 0.15); color: var(--danger); }
+    .badge-type-tmp { background: rgba(139, 148, 158, 0.18); color: var(--text-dim); }
+    .badge-type-other { background: rgba(63, 185, 80, 0.15); color: var(--accent); }
+
+    #emptyState { padding: 48px 18px; text-align: center; color: var(--text-dim); font-size: 15px; display: none; animation: fadeInUp 0.3s ease; }
+
+    .skeleton-row td {
+      background: linear-gradient(90deg, var(--panel) 0px, var(--panel-alt) 40px, var(--panel) 80px);
+      background-size: 800px 100%;
+      animation: shimmer 1.4s linear infinite;
+      color: transparent;
+    }
+
+    /* ---------- Warning toast notification ---------- */
+    @keyframes toastSlideIn {
+      from { opacity: 0; transform: translateX(40px) scale(0.95); }
+      to { opacity: 1; transform: translateX(0) scale(1); }
+    }
+    @keyframes toastSlideOut {
+      from { opacity: 1; transform: translateX(0) scale(1); }
+      to { opacity: 0; transform: translateX(40px) scale(0.95); }
+    }
+    @keyframes toastGlowPulse {
+      0%, 100% { box-shadow: 0 8px 28px rgba(0,0,0,0.4), 0 0 0 0 var(--toast-glow); }
+      50% { box-shadow: 0 8px 28px rgba(0,0,0,0.4), 0 0 0 6px transparent; }
+    }
+
+    #toastContainer {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 340px;
+    }
+
+    .toast {
+      --toast-glow: rgba(248, 81, 73, 0.35);
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-left: 4px solid var(--danger);
+      border-radius: 8px;
+      padding: 14px 16px;
+      animation: toastSlideIn 0.35s cubic-bezier(0.2, 0.8, 0.2, 1) both,
+                toastGlowPulse 1.8s ease-in-out infinite;
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+    }
+
+    .toast.warning { --toast-glow: rgba(210, 153, 34, 0.35); border-left-color: #d29922; }
+    .toast.critical { --toast-glow: rgba(248, 81, 73, 0.35); border-left-color: var(--danger); }
+
+    .toast.closing { animation: toastSlideOut 0.25s ease forwards; }
+
+    .toast-icon {
+      font-size: 18px;
+      line-height: 1;
+      flex-shrink: 0;
+    }
+
+    .toast-body { flex: 1; min-width: 0; }
+
+    .toast-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 4px;
+    }
+    .toast.warning .toast-title { color: #d29922; }
+    .toast.critical .toast-title { color: var(--danger); }
+
+    .toast-message {
+      font-size: 13px;
+      color: var(--text-dim);
+      line-height: 1.4;
+      word-break: break-word;
+    }
+
+    .toast-close {
+      background: none;
+      border: none;
+      color: var(--text-dim);
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      padding: 0;
+      flex-shrink: 0;
+      transition: color 0.15s ease;
+    }
+    .toast-close:hover { color: var(--text); }
+
+  /* ---------- Disk usage banner ---------- */
+  @keyframes bannerSlideDown {
+    from { opacity: 0; transform: translateY(-16px); max-height: 0; }
+    to { opacity: 1; transform: translateY(0); max-height: 200px; }
+  }
+  @keyframes barFill {
+    from { width: 0%; }
+  }
+  @keyframes criticalPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.4); }
+    50% { box-shadow: 0 0 0 10px rgba(248, 81, 73, 0); }
+  }
+  @keyframes iconShake {
+    0%, 100% { transform: rotate(0deg); }
+    25% { transform: rotate(-8deg); }
+    75% { transform: rotate(8deg); }
+  }
+
+  #diskBanner {
+    display: none;
+    border-radius: 10px;
+    padding: 18px 22px;
+    margin-bottom: 22px;
+    animation: bannerSlideDown 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    overflow: hidden;
+  }
+
+  #diskBanner.warning { border-color: #d29922; background: linear-gradient(90deg, rgba(210,153,34,0.08), var(--panel) 60%); }
+  #diskBanner.critical {
+    border-color: var(--danger);
+    background: linear-gradient(90deg, rgba(248,81,73,0.10), var(--panel) 60%);
+    animation: bannerSlideDown 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) both, criticalPulse 1.6s ease-in-out infinite;
+  }
+
+  #diskBannerTop {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  #diskBannerIcon { font-size: 22px; }
+  #diskBanner.critical #diskBannerIcon { animation: iconShake 0.6s ease-in-out infinite; }
+
+  #diskBannerText { flex: 1; }
+  #diskBannerTitle { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+  #diskBanner.warning #diskBannerTitle { color: #d29922; }
+  #diskBanner.critical #diskBannerTitle { color: var(--danger); }
+  #diskBannerSub { font-size: 13px; color: var(--text-dim); }
+
+  #diskBannerPercent { font-size: 26px; font-weight: 800; flex-shrink: 0; }
+  #diskBanner.warning #diskBannerPercent { color: #d29922; }
+  #diskBanner.critical #diskBannerPercent { color: var(--danger); }
+
+  #diskBarTrack {
+    width: 100%;
+    height: 10px;
+    background: var(--panel-alt);
+    border-radius: 6px;
+    overflow: hidden;
+    border: 1px solid var(--border);
+  }
+
+  #diskBarFill {
+    height: 100%;
+    border-radius: 6px;
+    animation: barFill 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+    transition: width 0.6s ease;
+    background: linear-gradient(90deg, var(--accent-dim), var(--accent));
+  }
+  #diskBanner.warning #diskBarFill { background: linear-gradient(90deg, #b8860b, #d29922); }
+  #diskBanner.critical #diskBarFill { background: linear-gradient(90deg, #a3221c, var(--danger)); }
+  #cleanupBtn {
+    background: transparent;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    padding: 11px 20px;
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  #cleanupBtn:hover { background: rgba(248,81,73,0.1); }
+  #cleanupBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  #cleanupPanel {
+    display: none;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    margin-bottom: 22px;
+    animation: fadeInUp 0.35s ease;
+  }
+  #cleanupPanel .panel-title { display: flex; justify-content: space-between; align-items: center; }
+  #cleanupSummary { font-size: 13px; color: var(--text-dim); font-weight: 400; text-transform: none; letter-spacing: normal; }
+
+  .cleanup-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    animation: fadeInUp 0.3s ease both;
+  }
+  .cleanup-row.rejected { opacity: 0.55; border-style: dashed; }
+  .cleanup-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--accent); flex-shrink: 0; }
+  .cleanup-row .cr-action {
+    font-size: 11px; text-transform: uppercase; font-weight: 700; padding: 2px 8px; border-radius: 4px; flex-shrink: 0;
+  }
+  .cr-action.delete { background: rgba(248,81,73,0.15); color: var(--danger); }
+  .cr-action.compress { background: rgba(88,166,255,0.15); color: var(--info); }
+  .cleanup-row .cr-path { flex: 1; min-width: 0; font-size: 13px; word-break: break-all; }
+  .cleanup-row .cr-size { color: var(--accent); font-weight: 700; font-size: 13px; flex-shrink: 0; }
+  .cleanup-row .cr-reason { color: var(--text-dim); font-size: 12px; flex-shrink: 0; max-width: 220px; }
+
+  #executeBtn {
+    background: var(--danger);
+    color: var(--bg);
+    border: none;
+    padding: 11px 22px;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    margin-top: 14px;
+  }
+  #executeBtn:hover { background: #ff6a61; }
+  #executeBtn:disabled { background: var(--border); color: var(--text-dim); cursor: not-allowed; }
+  #cleanupActions { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+  #agentsPanel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    margin-bottom: 22px;
+    animation: fadeInUp 0.35s ease;
+  }
+  #agentsPanel .panel-title { display: flex; justify-content: space-between; align-items: center; }
+  #agentsRefresh { background: none; border: 1px solid var(--border); color: var(--text-dim); padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; }
+  #agentsRefresh:hover { border-color: var(--accent-dim); color: var(--text); }
+
+  .agent-card {
+    display: flex; align-items: center; gap: 14px;
+    padding: 14px 16px; border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 8px; cursor: pointer;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .agent-card:hover { border-color: var(--accent-dim); background: var(--panel-alt); }
+  .agent-card.expanded { border-color: var(--accent); }
+  .agent-card .status-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .agent-card .status-dot.online { background: var(--accent); }
+  .agent-card .status-dot.stale { background: var(--danger); }
+  .agent-hostname { font-weight: 700; font-size: 15px; flex-shrink: 0; min-width: 160px; }
+  .agent-usage { font-size: 13px; color: var(--text-dim); flex-shrink: 0; }
+  .agent-flagged { font-size: 12px; color: var(--accent); margin-left: auto; flex-shrink: 0; }
+  #agentDetail { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--border); display: none; }
+  #agentEmptyState { color: var(--text-dim); font-size: 13px; padding: 12px 0; }
+
+  .select-all-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: normal;
+    color: var(--text-dim);
+    cursor: pointer;
+    user-select: none;
+  }
+  .select-all-label input[type="checkbox"] {
+    width: 15px; height: 15px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .select-all-label:hover { color: var(--text); }
+
+  #agentsDemo {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.2s ease, color 0.2s ease;
+  }
+  #agentsDemo:hover { border-color: var(--info); color: var(--info); }
+  #agentsDemo:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .cr-selected-size {
+    color: var(--text-dim);
+    font-weight: 400;
+    font-size: 12px;
+    margin-left: 8px;
+  }
+  </style>
+  </head>
+  <body>
+
+    <div id="toastContainer"></div>
+
+    <div class="header">
+      <div>
+        <h1>Node Sanity — Disk Analyzer</h1>
+        <div class="subtitle">multi-server, read-only disk scan with AI-generated reasoning</div>
+      </div>
+      <a class="nav-link" href="/manage">Manage Servers &rarr;</a>
+    </div>
+
+    <div id="controls">
+      <select id="serverSelect" onchange="onServerChange()">
+        <option value="">Loading servers…</option>
+      </select>
+      <input type="text" id="folderInput" placeholder="override folder (optional)">
+      <button id="scanBtn" onclick="runScan()">Scan Now</button>
+      <button id="cleanupBtn" onclick="generateCleanupPlan()" disabled>Suggest Cleanup</button>
+    </div>
+
+    <div id="status"></div>
+
+    <div id="diskBanner">
+      <div id="diskBannerTop">
+        <div id="diskBannerIcon">⚠️</div>
+        <div id="diskBannerText">
+          <div id="diskBannerTitle">Disk space running low</div>
+          <div id="diskBannerSub"></div>
+        </div>
+        <div id="diskBannerPercent">—</div>
+      </div>
+      <div id="diskBarTrack"><div id="diskBarFill" style="width:0%"></div></div>
+    </div>
+
+    <div id="statGrid" style="display:none;">
+      <div class="stat-card"><div class="stat-label">Server</div><div class="stat-value" id="statFolder">—</div></div>
+      <div class="stat-card"><div class="stat-label">Total Files</div><div class="stat-value" id="statFiles">—</div></div>
+      <div class="stat-card"><div class="stat-label">Largest File</div><div class="stat-value" id="statLargestSize">—</div></div>
+      <div class="stat-card"><div class="stat-label">Shown / Filtered</div><div class="stat-value" id="statTotalTop">—</div></div>
+    </div>
+
+    <div id="largestBox">
+      <div class="tag">AI Analysis</div>
+      <p id="largestName"></p>
+      <p id="largestPath"></p>
+      <p id="largestSize"></p>
+      <p id="largestMeta"></p>
+      <p id="largestReason"></p>
+    </div>
+
+    <div id="filterBar" style="display:none;">
+      <label>Owner</label>
+      <select id="ownerFilter" onchange="applyFilters()"><option value="">All</option></select>
+      <label>Type</label>
+      <select id="typeFilter" onchange="applyFilters()"><option value="">All</option></select>
+      <div id="resultCount"></div>
+    </div>
+
+    <div id="layout">
+      <div id="leftPanel">
+        <div class="panel-title">Files by size</div>
+        <table>
+          <thead>
+            <tr><th>Size (MB)</th><th>File</th><th>Owner</th><th>Type</th></tr>
+          </thead>
+          <tbody id="fileTable"></tbody>
+        </table>
+        <div id="emptyState">No files match the current filters.</div>
+      </div>
+
+      <div id="chartPanel">
+        <canvas id="sizeChart"></canvas>
+      </div>
+    </div>
+
+    <div id="cleanupPanel">
+      <div class="panel-title">
+        <span>Suggested Cleanup <span id="cleanupSummary"></span></span>
+        <label class="select-all-label">
+          <input type="checkbox" id="cleanupSelectAll" onchange="toggleSelectAllCleanup(this.checked)">
+          Select all
+        </label>
+      </div>
+      <div id="cleanupList"></div>
+      <span id="rejectedToggle" style="display:none;" onclick="toggleRejected()">Show blocked items</span>
+      <div id="rejectedList" style="display:none;"></div>
+      <div id="cleanupActions">
+        <div style="font-size:13px; color:var(--text-dim); margin-bottom:10px;">
+          Checked items will be sent to the Recycle Bin / Trash (log files are compressed first, original then trashed). Nothing is permanently deleted, and nothing runs until you click Execute.
+        </div>
+        <button id="executeBtn" onclick="executeCleanup()" disabled>Execute Selected (0)</button>
+      </div>
+    </div>
+
+    <div id="agentsPanel">
+      <div class="panel-title">
+        <span>Live Agents</span>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <button id="agentsDemo" onclick="runDemoAgent()">+ Demo Agent</button>
+          <button id="agentsRefresh" onclick="loadAgents()">Refresh</button>
+        </div>
+      </div>
+      <div style="font-size:13px; color:var(--text-dim); margin-bottom:14px;">
+        Remote machines running <code>agent/agent_app.py</code> report in here automatically once their own disk threshold is crossed — nothing to click to get a report, only to review and approve one.
+      </div>
+      <div id="agentsList"></div>
+      <div id="agentEmptyState" style="display:none;">No agents have registered yet. Run <code>agent/agent_app.py</code> on a machine pointed at this server to see it here.</div>
+      <div id="agentDetail">
+        <div class="panel-title">
+          <span id="agentDetailTitle"></span>
+          <label class="select-all-label">
+            <input type="checkbox" id="agentSelectAll" onchange="toggleSelectAllAgentCleanup(this.checked)">
+            Select all
+          </label>
+        </div>
+        <div id="agentCleanupList"></div>
+        <span id="agentRejectedToggle" style="display:none; cursor:pointer; color:var(--text-dim); font-size:12px; text-decoration:underline;" onclick="toggleAgentRejected()">Show blocked items</span>
+        <div id="agentRejectedList" style="display:none;"></div>
+        <div style="margin-top:14px; padding-top:14px; border-top:1px solid var(--border);">
+          <button id="agentExecuteBtn" onclick="executeAgentCleanup()" disabled>Execute Selected (0)</button>
+        </div>
+      </div>
+    </div>
+
+  <script>
+    const API_BASE = "";  // same origin - backend now serves this page directly
+    let chartInstance = null;
+    let allFiles = [];       // full unfiltered result from the last scan
+    let currentServerId = "";
+    let lastScanParams = null;   // { folder } or { server_id } - reused by cleanup-plan/execute
+    let cleanupData = null;      // last response from /cleanup-plan
+
+    // Size thresholds for automatic warning toasts - tweak these freely.
+    const WARNING_THRESHOLD_MB = 50;
+    const CRITICAL_THRESHOLD_MB = 200;
+    let toastCounter = 0;
+
+    function showWarningToast(message, severity = "warning", title = null) {
+      const container = document.getElementById("toastContainer");
+      const id = `toast-${toastCounter++}`;
+      const defaultTitle = severity === "critical" ? "Critical" : "Warning";
+
+      const toast = document.createElement("div");
+      toast.className = `toast ${severity}`;
+      toast.id = id;
+      toast.innerHTML = `
+        <div class="toast-icon">${severity === "critical" ? "⛔" : "⚠️"}</div>
+        <div class="toast-body">
+          <div class="toast-title">${title || defaultTitle}</div>
+          <div class="toast-message">${message}</div>
+        </div>
+        <button class="toast-close" onclick="dismissToast('${id}')">✕</button>
+      `;
+      container.appendChild(toast);
+
+      // Auto-dismiss after 6 seconds unless the user closes it first.
+      setTimeout(() => dismissToast(id), 6000);
+    }
+
+    function dismissToast(id) {
+      const toast = document.getElementById(id);
+      if (!toast || toast.classList.contains("closing")) return;
+      toast.classList.add("closing");
+      toast.addEventListener("animationend", () => toast.remove(), { once: true });
+    }
+
+    function splitPath(fullPath) {
+      const parts = fullPath.split("/");
+      const fileName = parts.pop();
+      const folderPath = parts.join("/") || "/";
+      return { fileName, folderPath };
+    }
+
+    function shortName(fileName, maxLen = 22) {
+      return fileName.length > maxLen ? fileName.substring(0, maxLen - 3) + "..." : fileName;
+    }
+
+    // ---------- Server dropdown ----------
+    async function loadServers() {
+      const select = document.getElementById("serverSelect");
+      try {
+        const res = await fetch(`${API_BASE}/servers?enabled_only=true`);
+        const servers = await res.json();
+        select.innerHTML = servers.map(s =>
+          `<option value="${s.id}">${s.name} (${s.hostname})</option>`
+        ).join("");
+        if (servers.length > 0) {
+          currentServerId = servers[0].id;
+        }
+      } catch (err) {
+        select.innerHTML = `<option value="">Could not load servers — is the backend running?</option>`;
+      }
+    }
+
+    function onServerChange() {
+      currentServerId = document.getElementById("serverSelect").value;
+    }
+
+    // ---------- Scan ----------
+    async function runScan() {
+      const status = document.getElementById("status");
+      const btn = document.getElementById("scanBtn");
+      const folderOverride = document.getElementById("folderInput").value.trim();
+
+      btn.disabled = true;
+      btn.innerHTML = `<span class="spinner"></span>Scanning`;
+      status.className = "loading";
+      status.innerText = "Scanning";
+      showSkeletonRows();
+
+      try {
+        const params = new URLSearchParams();
+        if (folderOverride) {
+          params.set("folder", folderOverride);
+          lastScanParams = { folder: folderOverride };
+        } else if (currentServerId) {
+          params.set("server_id", currentServerId);
+          lastScanParams = { server_id: currentServerId };
+        }
+
+        const response = await fetch(`${API_BASE}/scan?${params.toString()}`);
+        if (!response.ok) {
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${response.status}`);
+        }
+        const data = await response.json();
+
+        status.className = "";
+        status.innerText = `Scanned ${data.total_files} files on ${data.server_name} (${data.folder_scanned})`;
+
+        allFiles = data.top_files || [];
+        populateFilterOptions(data.available_owners || [], data.available_types || []);
+        renderLargest(data.largest_file);
+        renderStats(data);
+        checkForWarnings(data);
+        renderDiskBanner(data.disk_usage);
+
+        document.getElementById("filterBar").style.display = allFiles.length ? "flex" : "none";
+        applyFilters();
+
+        document.getElementById("cleanupBtn").disabled = false;
+        document.getElementById("cleanupPanel").style.display = "none";
+        cleanupData = null;
+
+      } catch (err) {
+        status.className = "error";
+        status.innerText = `Could not complete scan — ${err.message}`;
+        document.getElementById("fileTable").innerHTML = "";
+        document.getElementById("emptyState").style.display = "block";
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Scan Now";
+      }
+    }
+
+    // ---------- Cleanup plan ----------
+    async function generateCleanupPlan() {
+      if (!lastScanParams) return;
+      const btn = document.getElementById("cleanupBtn");
+      btn.disabled = true;
+      btn.innerText = "Analyzing…";
+
+      try {
+        const params = new URLSearchParams();
+        if (lastScanParams.folder) params.set("folder", lastScanParams.folder);
+        else if (lastScanParams.server_id) params.set("server_id", lastScanParams.server_id);
+
+        const res = await fetch(`${API_BASE}/cleanup-plan?${params.toString()}`, { method: "POST" });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        renderCleanupPlan(data);
+
+      } catch (err) {
+        showWarningToast(`Could not generate cleanup plan — ${err.message}`, "critical", "Cleanup plan failed");
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "Suggest Cleanup";
+      }
+    }
+
+    function renderCleanupPlan(data) {
+      cleanupData = data;
+      document.getElementById("cleanupPanel").style.display = "block";
+      document.getElementById("cleanupSummary").innerText =
+        `${data.approved.length} suggested · ${data.rejected.length} blocked by policy`;
+
+      const list = document.getElementById("cleanupList");
+      if (!data.approved.length) {
+        list.innerHTML = `<div style="color:var(--text-dim); font-size:14px; padding:16px 0;">Nothing meets the cleanup policy right now (min age: ${data.policy.min_age_days} days · types: ${data.policy.cleanup_types.join(", ")}).</div>`;
+      } else {
+        list.innerHTML = data.approved.map((a, i) => `
+          <div class="cleanup-row" style="animation-delay:${Math.min(i, 10) * 0.03}s">
+            <input type="checkbox" class="cleanup-check" data-idx="${i}" onchange="updateExecuteCount()">
+            <span class="cr-action ${a.action}">${a.action}</span>
+            <span class="cr-path" title="${a.path}">${a.path}</span>
+            <span class="cr-size">${a.size_mb} MB</span>
+            <span class="cr-reason">${a.reason}</span>
+          </div>
+        `).join("");
+      }
+
+      const rejToggle = document.getElementById("rejectedToggle");
+      const rejList = document.getElementById("rejectedList");
+      rejList.style.display = "none";
+      if (data.rejected.length) {
+        rejToggle.style.display = "inline-block";
+        rejToggle.innerText = `Show ${data.rejected.length} blocked item(s)`;
+        rejList.innerHTML = data.rejected.map(r => `
+          <div class="cleanup-row rejected">
+            <span class="cr-action ${r.action}">${r.action}</span>
+            <span class="cr-path" title="${r.path}">${r.path}</span>
+            <span class="cr-reason">${r.rejection_reason}</span>
+          </div>
+        `).join("");
+      } else {
+        rejToggle.style.display = "none";
+      }
+
+      updateExecuteCount();
+    }
+
+    function toggleRejected() {
+      const rejList = document.getElementById("rejectedList");
+      const toggle = document.getElementById("rejectedToggle");
+      const show = rejList.style.display === "none";
+      rejList.style.display = show ? "block" : "none";
+      toggle.innerText = show ? "Hide blocked items" : `Show ${cleanupData.rejected.length} blocked item(s)`;
+    }
+
+    function toggleSelectAllCleanup(checked) {
+      document.querySelectorAll(".cleanup-check").forEach(cb => { cb.checked = checked; });
+      updateExecuteCount();
+    }
+
+    function updateExecuteCount() {
+      const boxes = [...document.querySelectorAll(".cleanup-check")];
+      const checkedBoxes = boxes.filter(cb => cb.checked);
+      const btn = document.getElementById("executeBtn");
+
+      const totalSizeMb = cleanupData
+        ? checkedBoxes.reduce((sum, cb) => sum + (cleanupData.approved[Number(cb.dataset.idx)]?.size_mb || 0), 0)
+        : 0;
+
+      btn.innerText = checkedBoxes.length
+        ? `Execute Selected (${checkedBoxes.length} · ${totalSizeMb.toFixed(1)} MB)`
+        : `Execute Selected (0)`;
+      btn.disabled = checkedBoxes.length === 0;
+
+      const selectAll = document.getElementById("cleanupSelectAll");
+      if (selectAll) {
+        selectAll.checked = boxes.length > 0 && checkedBoxes.length === boxes.length;
+        selectAll.indeterminate = checkedBoxes.length > 0 && checkedBoxes.length < boxes.length;
+      }
+    }
+
+    async function executeCleanup() {
+      const checked = [...document.querySelectorAll(".cleanup-check:checked")]
+        .map(cb => cleanupData.approved[Number(cb.dataset.idx)]);
+      if (!checked.length) return;
+
+      const summary = checked.map(a => `${a.action} — ${a.path}`).join("\n");
+      const confirmed = confirm(
+        `This sends ${checked.length} item(s) to the Recycle Bin / Trash (log files are compressed first, then the original is trashed). This can be undone from the Recycle Bin, but not from this app.\n\n${summary}\n\nProceed?`
+      );
+      if (!confirmed) return;
+
+      const btn = document.getElementById("executeBtn");
+      btn.disabled = true;
+      btn.innerText = "Working…";
+
+      try {
+        const body = { actions: checked };
+        if (lastScanParams.folder) body.folder = lastScanParams.folder;
+        else if (lastScanParams.server_id) body.server_id = lastScanParams.server_id;
+
+        const res = await fetch(`${API_BASE}/cleanup-execute`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        const result = await res.json();
+
+        showWarningToast(
+          `${result.executed.length} item(s) cleaned up${result.failed.length ? `, ${result.failed.length} failed` : ""}`,
+          result.failed.length ? "warning" : "info",
+          "Cleanup complete"
+        );
+
+        // Refresh so completed items disappear from both the table and the plan.
+        await runScan();
+
+      } catch (err) {
+        showWarningToast(`Cleanup failed — ${err.message}`, "critical", "Cleanup failed");
+      } finally {
+        updateExecuteCount();
+      }
+    }
+
+    function showSkeletonRows() {
+      const tbody = document.getElementById("fileTable");
+      document.getElementById("emptyState").style.display = "none";
+      tbody.innerHTML = Array.from({ length: 5 }).map(() =>
+        `<tr class="skeleton-row"><td>00.0</td><td>loading file name here</td><td>owner</td><td>type</td></tr>`
+      ).join("");
+    }
+
+    // Thresholds for the overall disk-usage banner - separate from the
+  // per-file toast thresholds above. Tweak freely.
+  const DISK_WARNING_PERCENT = 70;
+  const DISK_CRITICAL_PERCENT = 85;
+
+  function renderDiskBanner(diskUsage) {
+    const banner = document.getElementById("diskBanner");
+
+    if (!diskUsage || diskUsage.percent_used === undefined) {
+      banner.style.display = "none";
+      return;
+    }
+
+    const pct = diskUsage.percent_used;
+
+    if (pct < DISK_WARNING_PERCENT) {
+      banner.style.display = "none";
+      return;
+    }
+
+    const severity = pct >= DISK_CRITICAL_PERCENT ? "critical" : "warning";
+    banner.className = severity;
+    banner.style.display = "block";
+
+    document.getElementById("diskBannerTitle").innerText =
+      severity === "critical"
+        ? "Disk almost full — delete some files now"
+        : "Disk space running low";
+
+    document.getElementById("diskBannerSub").innerText =
+      `${diskUsage.used_gb} GB used of ${diskUsage.total_gb} GB — ${diskUsage.free_gb} GB free`;
+
+    document.getElementById("diskBannerPercent").innerText = `${pct}%`;
+    document.getElementById("diskBarFill").style.width = `${Math.min(pct, 100)}%`;
+
+    // Also fire a toast so it's noticeable even if the person has
+    // scrolled past the banner.
+    showWarningToast(
+      `Drive is ${pct}% full (${diskUsage.free_gb} GB free). Consider cleaning up soon.`,
+      severity,
+      severity === "critical" ? "Disk Almost Full" : "Disk Space Low"
+    );
+  }
+
+  function checkForWarnings(data) {
+      const largest = data.largest_file;
+      if (!largest) return;
+
+      if (largest.size_mb >= CRITICAL_THRESHOLD_MB) {
+        showWarningToast(
+          `${largest.path.split("/").pop()} is ${largest.size_mb} MB — well above the ${CRITICAL_THRESHOLD_MB} MB critical threshold.`,
+          "critical"
+        );
+      } else if (largest.size_mb >= WARNING_THRESHOLD_MB) {
+        showWarningToast(
+          `${largest.path.split("/").pop()} is ${largest.size_mb} MB — above the ${WARNING_THRESHOLD_MB} MB warning threshold.`,
+          "warning"
+        );
+      }
+    }
+
+    function renderStats(data) {
+      const statGrid = document.getElementById("statGrid");
+      statGrid.style.display = "grid";
+      document.getElementById("statFolder").innerText = data.server_name;
+      document.getElementById("statFiles").innerText = data.total_files;
+      document.getElementById("statLargestSize").innerText = data.largest_file ? data.largest_file.size_mb + " MB" : "—";
+    }
+
+    function renderLargest(largest) {
+      const box = document.getElementById("largestBox");
+      if (!largest) { box.style.display = "none"; return; }
+      const { fileName, folderPath } = splitPath(largest.path);
+      box.style.display = "block";
+      document.getElementById("largestName").innerText = fileName;
+      document.getElementById("largestPath").innerText = folderPath;
+      document.getElementById("largestSize").innerText = largest.size_mb + " MB";
+      document.getElementById("largestMeta").innerText = `owner: ${largest.owner}  •  type: ${largest.type}  •  age: ${largest.age_days} days`;
+      document.getElementById("largestReason").innerText = largest.ai_reason || "";
+    }
+
+    // ---------- Filters ----------
+    function populateFilterOptions(owners, types) {
+      const ownerSelect = document.getElementById("ownerFilter");
+      const typeSelect = document.getElementById("typeFilter");
+      const prevOwner = ownerSelect.value;
+      const prevType = typeSelect.value;
+
+      ownerSelect.innerHTML = `<option value="">All owners</option>` +
+        owners.map(o => `<option value="${o}">${o}</option>`).join("");
+      typeSelect.innerHTML = `<option value="">All types</option>` +
+        types.map(t => `<option value="${t}">${t}</option>`).join("");
+
+      if (owners.includes(prevOwner)) ownerSelect.value = prevOwner;
+      if (types.includes(prevType)) typeSelect.value = prevType;
+    }
+
+    function applyFilters() {
+      const owner = document.getElementById("ownerFilter").value;
+      const type = document.getElementById("typeFilter").value;
+
+      let filtered = allFiles;
+      if (owner) filtered = filtered.filter(f => f.owner === owner);
+      if (type) filtered = filtered.filter(f => f.type === type);
+
+      renderTable(filtered);
+      updateChart(filtered);
+
+      document.getElementById("statTotalTop").innerText = `${filtered.length} / ${allFiles.length}`;
+      document.getElementById("resultCount").innerText = `Showing ${filtered.length} of ${allFiles.length} file(s)`;
+    }
+
+    function typeBadgeClass(type) {
+      return `badge-type-${["log","cache","backup","iso","tmp"].includes(type) ? type : "other"}`;
+    }
+
+    function renderTable(files) {
+      const tableBody = document.getElementById("fileTable");
+      const emptyState = document.getElementById("emptyState");
+      tableBody.innerHTML = "";
+
+      if (!files.length) {
+        emptyState.style.display = "block";
+        return;
+      }
+      emptyState.style.display = "none";
+
+      files.forEach((file, i) => {
+        const { fileName, folderPath } = splitPath(file.path);
+        const row = document.createElement("tr");
+        row.title = file.path;
+        row.style.animationDelay = `${Math.min(i, 12) * 0.03}s`;
+        row.innerHTML = `
+          <td class="size-cell">${file.size_mb}</td>
+          <td class="path-cell">${shortName(fileName)}<span class="folder-path">${folderPath}</span></td>
+          <td><span class="badge badge-owner">${file.owner}</span></td>
+          <td><span class="badge ${typeBadgeClass(file.type)}">${file.type}</span></td>
+        `;
+        tableBody.appendChild(row);
+      });
+    }
+
+    function updateChart(files) {
+      const ctx = document.getElementById("sizeChart").getContext("2d");
+      const top10 = files.slice(0, 10);
+
+      const labels = top10.map((f, i) => {
+        const { fileName } = splitPath(f.path);
+        return `#${i + 1} ${shortName(fileName, 16)} (${f.size_mb}MB)`;
+      });
+      const sizes = top10.map(f => f.size_mb);
+
+      if (chartInstance) chartInstance.destroy();
+
+      chartInstance = new Chart(ctx, {
+        type: "doughnut",
+        data: {
+          labels,
+          datasets: [{
+            data: sizes,
+            backgroundColor: ["#39ff6e","#22c94e","#6dffa0","#a8ffc9","#158a3a","#45e0c4","#d29922","#a371f7","#ff5f56","#5fa87c"],
+            borderColor: "#071d12",
+            borderWidth: 2,
+          }]
+        },
+        options: {
+          cutout: "60%",
+          animation: { animateRotate: true, animateScale: true, duration: 700, easing: "easeOutQuart" },
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: { color: "#5fa87c", font: { size: 11, family: "monospace" }, padding: 10, boxWidth: 12 }
+            }
+          }
+        }
+      });
+    }
+
+    // ---------- Init ----------
+    // ---------- Live Agents ----------
+    let agentsData = [];
+    let agentReportData = null;   // full report for the currently-expanded agent
+    let expandedAgentHostname = null;
+
+    async function loadAgents() {
+      try {
+        const res = await fetch(`${API_BASE}/agents`);
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        agentsData = await res.json();
+        renderAgents();
+      } catch (err) {
+        document.getElementById("agentsList").innerHTML = "";
+        document.getElementById("agentEmptyState").style.display = "block";
+        document.getElementById("agentEmptyState").innerText = `Could not reach the agents API — ${err.message}`;
+      }
+    }
+
+    function renderAgents() {
+      const list = document.getElementById("agentsList");
+      const empty = document.getElementById("agentEmptyState");
+
+      if (!agentsData.length) {
+        list.innerHTML = "";
+        empty.style.display = "block";
+        empty.innerText = "No agents have registered yet. Run agent/agent_app.py on a machine pointed at this server to see it here.";
+        return;
+      }
+      empty.style.display = "none";
+
+      const now = Date.now() / 1000;
+      list.innerHTML = agentsData.map(a => {
+        const stale = !a.last_seen || (now - a.last_seen) > 120;
+        const usage = a.last_disk_usage != null ? `${a.last_disk_usage.toFixed(1)}% used` : "no data yet";
+        const flagged = a.approved_count ? `${a.approved_count} item(s) flagged` : "nothing flagged";
+        return `
+          <div class="agent-card ${expandedAgentHostname === a.hostname ? 'expanded' : ''}" onclick="selectAgent('${a.hostname}')">
+            <span class="status-dot ${stale ? 'stale' : 'online'}"></span>
+            <span class="agent-hostname">${a.hostname}</span>
+            <span class="agent-usage">${usage}</span>
+            <span class="agent-flagged">${flagged}</span>
+          </div>
+        `;
+      }).join("");
+    }
+
+    async function selectAgent(hostname) {
+      expandedAgentHostname = hostname;
+      renderAgents();
+
+      const detail = document.getElementById("agentDetail");
+      detail.style.display = "block";
+      document.getElementById("agentDetailTitle").innerText = `${hostname} — latest report`;
+
+      try {
+        const res = await fetch(`${API_BASE}/agents/${encodeURIComponent(hostname)}`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        agentReportData = await res.json();
+        renderAgentReport();
+      } catch (err) {
+        document.getElementById("agentCleanupList").innerHTML =
+          `<div style="color:var(--text-dim); font-size:14px; padding:16px 0;">${err.message}</div>`;
+      }
+    }
+
+    function renderAgentReport() {
+      const list = document.getElementById("agentCleanupList");
+      const approved = agentReportData.approved || [];
+      const rejected = agentReportData.rejected || [];
+
+      if (!approved.length) {
+        list.innerHTML = `<div style="color:var(--text-dim); font-size:14px; padding:16px 0;">Nothing approved in this agent's latest report.</div>`;
+      } else {
+        list.innerHTML = approved.map((a, i) => `
+          <div class="cleanup-row" style="animation-delay:${Math.min(i, 10) * 0.03}s">
+            <input type="checkbox" class="agent-cleanup-check" data-idx="${i}" onchange="updateAgentExecuteCount()">
+            <span class="cr-action ${a.action}">${a.action}</span>
+            <span class="cr-path" title="${a.path}">${a.path}</span>
+            <span class="cr-size">${a.size_mb} MB</span>
+            <span class="cr-reason">${a.reason}</span>
+          </div>
+        `).join("");
+      }
+
+      const toggle = document.getElementById("agentRejectedToggle");
+      const rejList = document.getElementById("agentRejectedList");
+      rejList.style.display = "none";
+      if (rejected.length) {
+        toggle.style.display = "inline-block";
+        toggle.innerText = `Show ${rejected.length} blocked item(s)`;
+        rejList.innerHTML = rejected.map(r => `
+          <div class="cleanup-row rejected">
+            <span class="cr-action ${r.action}">${r.action}</span>
+            <span class="cr-path" title="${r.path}">${r.path}</span>
+            <span class="cr-reason">${r.rejection_reason}</span>
+          </div>
+        `).join("");
+      } else {
+        toggle.style.display = "none";
+      }
+
+      updateAgentExecuteCount();
+    }
+
+    function toggleAgentRejected() {
+      const rejList = document.getElementById("agentRejectedList");
+      const toggle = document.getElementById("agentRejectedToggle");
+      const show = rejList.style.display === "none";
+      rejList.style.display = show ? "block" : "none";
+      toggle.innerText = show ? "Hide blocked items" : `Show ${agentReportData.rejected.length} blocked item(s)`;
+    }
+
+    function toggleSelectAllAgentCleanup(checked) {
+      document.querySelectorAll(".agent-cleanup-check").forEach(cb => { cb.checked = checked; });
+      updateAgentExecuteCount();
+    }
+
+    function updateAgentExecuteCount() {
+      const boxes = [...document.querySelectorAll(".agent-cleanup-check")];
+      const checkedBoxes = boxes.filter(cb => cb.checked);
+      const btn = document.getElementById("agentExecuteBtn");
+
+      const totalSizeMb = agentReportData
+        ? checkedBoxes.reduce((sum, cb) => sum + (agentReportData.approved[Number(cb.dataset.idx)]?.size_mb || 0), 0)
+        : 0;
+
+      btn.innerText = checkedBoxes.length
+        ? `Execute Selected (${checkedBoxes.length} · ${totalSizeMb.toFixed(1)} MB)`
+        : `Execute Selected (0)`;
+      btn.disabled = checkedBoxes.length === 0;
+
+      const selectAll = document.getElementById("agentSelectAll");
+      if (selectAll) {
+        selectAll.checked = boxes.length > 0 && checkedBoxes.length === boxes.length;
+        selectAll.indeterminate = checkedBoxes.length > 0 && checkedBoxes.length < boxes.length;
+      }
+    }
+
+    async function executeAgentCleanup() {
+      const checked = [...document.querySelectorAll(".agent-cleanup-check:checked")]
+        .map(cb => agentReportData.approved[Number(cb.dataset.idx)]);
+      if (!checked.length || !expandedAgentHostname) return;
+
+      const summary = checked.map(a => `${a.action} — ${a.path}`).join("\n");
+      const confirmed = confirm(
+        `This sends ${checked.length} item(s) on ${expandedAgentHostname} to that machine's own trash (logs compressed first). This runs on the remote agent, not this dashboard's machine.\n\n${summary}\n\nProceed?`
+      );
+      if (!confirmed) return;
+
+      const btn = document.getElementById("agentExecuteBtn");
+      btn.disabled = true;
+      btn.innerText = "Working…";
+
+      try {
+        const res = await fetch(`${API_BASE}/agents/${encodeURIComponent(expandedAgentHostname)}/execute`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ actions: checked }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || `HTTP ${res.status}`);
+        }
+        const result = await res.json();
+
+        showWarningToast(
+          `${(result.executed || []).length} item(s) cleaned up on ${expandedAgentHostname}${(result.failed || []).length ? `, ${result.failed.length} failed` : ""}`,
+          (result.failed || []).length ? "warning" : "info",
+          "Agent cleanup complete"
+        );
+
+        await selectAgent(expandedAgentHostname);
+        await loadAgents();
+
+      } catch (err) {
+        showWarningToast(`Agent cleanup failed — ${err.message}`, "critical", "Cleanup failed");
+      } finally {
+        updateAgentExecuteCount();
+      }
+    }
+
+    // ---------- Demo agent ----------
+    // The Live Agents panel only ever shows real data pushed by a
+    // separate machine running agent/agent_app.py - if you haven't
+    // deployed one yet, the panel is correctly empty, not broken.
+    // This button calls the exact same /register and /agent-report
+    // endpoints a real agent would, with sample flagged files, so you
+    // can see and test the review/approve/execute flow immediately.
+    async function runDemoAgent() {
+      const btn = document.getElementById("agentsDemo");
+      btn.disabled = true;
+      btn.innerText = "Working…";
+
+      const hostname = "demo-agent";
+
+      try {
+        const regRes = await fetch(`${API_BASE}/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            hostname,
+            callback_host: "127.0.0.1",
+            agent_port: 9999,
+            disk_threshold: 70,
+          }),
+        });
+        if (!regRes.ok) throw new Error(`HTTP ${regRes.status} while registering`);
+
+        const demoFiles = [
+          { path: "/var/log/demo-app/access.log", size_mb: 152.4, age_days: 61, owner: "demo", uid: 1001, type: "log" },
+          { path: "/var/cache/demo-app/build-cache.bin", size_mb: 340.2, age_days: 95, owner: "demo", uid: 1001, type: "cache" },
+          { path: "/home/demo/backups/db-2025-01.bak", size_mb: 890.0, age_days: 210, owner: "demo", uid: 1001, type: "backup" },
+          { path: "/tmp/demo-session-882.tmp", size_mb: 4.1, age_days: 45, owner: "demo", uid: 1001, type: "tmp" },
+        ];
+
+        const reportRes = await fetch(`${API_BASE}/agent-report`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            hostname,
+            disk_usage_percent: 88.4,
+            target_usage: 70,
+            files: demoFiles,
+          }),
+        });
+        if (!reportRes.ok) throw new Error(`HTTP ${reportRes.status} while reporting`);
+
+        showWarningToast(
+          "Demo agent registered with sample flagged files — expand it below to try selecting and reviewing items. (Execute will fail on purpose: no real machine is listening at its callback address.)",
+          "info",
+          "Demo agent ready"
+        );
+        await loadAgents();
+
+      } catch (err) {
+        showWarningToast(`Could not run demo agent — ${err.message}`, "critical", "Demo agent failed");
+      } finally {
+        btn.disabled = false;
+        btn.innerText = "+ Demo Agent";
+      }
+    }
+
+    loadServers();
+    loadAgents();
+  </script>
+
+  </body>
+  </html>

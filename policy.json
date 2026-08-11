@@ -1,0 +1,22 @@
+{
+  "min_age_days": 30,
+  "min_uid": 1000,
+  "cleanup_types": ["cache", "tmp", "log", "backup"],
+  "compress_instead_of_delete": ["log"],
+  "max_actions_per_plan": 25,
+  "never_touch_paths": [
+    "C:/Windows",
+    "C:/Program Files",
+    "C:/Program Files (x86)",
+    "C:/ProgramData",
+    "/etc",
+    "/bin",
+    "/sbin",
+    "/usr",
+    "/boot",
+    "/var/lib",
+    "/System",
+    "/Library"
+  ],
+  "never_touch_extensions": [".exe", ".dll", ".sys", ".ini", ".config", ".lnk"]
+}

@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Node Sanity - Server Manager</title>
+<style>
+  :root {
+    --bg: #030907;
+    --panel: #071d12;
+    --panel-alt: #0d2a19;
+    --border: #1e4a2e;
+    --text: #b8ffce;
+    --text-dim: #5fa87c;
+    --accent: #39ff6e;
+    --accent-dim: #22c94e;
+    --accent-glow: rgba(57, 255, 110, 0.35);
+    --danger: #ff5f56;
+    --info: #45e0c4;
+  }
+  * { box-sizing: border-box; }
+
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(14px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes fadeInLeft {
+    from { opacity: 0; transform: translateX(-10px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes cardRemove {
+    from { opacity: 1; transform: scale(1); max-height: 200px; }
+    to { opacity: 0; transform: scale(0.95); max-height: 0; margin: 0; padding: 0; }
+  }
+  @keyframes flashSuccess {
+    0% { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    100% { border-color: var(--border); box-shadow: none; }
+  }
+
+  body {
+    font-family: 'SF Mono', 'Consolas', 'Menlo', monospace;
+    background: radial-gradient(circle at 20% 0%, #0a1f12 0%, var(--bg) 55%);
+    color: var(--text);
+    margin: 0;
+    padding: 32px;
+    font-size: 16px;
+    animation: fadeInUp 0.4s ease;
+  }
+
+  .header {
+    margin-bottom: 24px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 18px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+
+  h1 {
+    font-size: 26px;
+    font-weight: 700;
+    margin: 0 0 6px 0;
+    letter-spacing: -0.3px;
+    background: linear-gradient(90deg, var(--text) 0%, var(--accent) 120%);
+    -webkit-background-clip: text;
+    background-clip: text;
+  }
+  .subtitle { color: var(--text-dim); font-size: 15px; }
+
+  .nav-link {
+    color: var(--info);
+    text-decoration: none;
+    font-size: 14px;
+    padding: 8px 14px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    transition: border-color 0.2s ease, background 0.2s ease;
+  }
+  .nav-link:hover { border-color: var(--info); background: rgba(88,166,255,0.08); }
+
+  #layout { display: flex; gap: 20px; align-items: flex-start; }
+
+  #formPanel {
+    width: 360px;
+    flex-shrink: 0;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    animation: fadeInLeft 0.4s ease both;
+  }
+
+  #listPanel { flex: 1; min-width: 0; }
+
+  .panel-title {
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+    font-weight: 700;
+    margin-bottom: 16px;
+  }
+
+  label {
+    display: block;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-dim);
+    margin: 14px 0 6px 0;
+  }
+  label:first-of-type { margin-top: 0; }
+
+  input {
+    width: 100%;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--accent-dim);
+    box-shadow: 0 0 0 3px rgba(63,185,80,0.15);
+  }
+
+  .hint { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 16px;
+  }
+  .checkbox-row input[type="checkbox"] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--accent);
+    cursor: pointer;
+  }
+  .checkbox-label {
+    margin: 0 !important;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    font-size: 13px !important;
+    color: var(--text) !important;
+    cursor: pointer;
+  }
+
+  #formActions { display: flex; gap: 10px; margin-top: 20px; }
+
+  #submitBtn {
+    flex: 1;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 11px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+  }
+  #submitBtn:hover { background: var(--accent-dim); box-shadow: 0 4px 18px var(--accent-glow); }
+  #submitBtn:active { transform: scale(0.97); }
+
+  #cancelEditBtn {
+    display: none;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--border);
+    padding: 11px 16px;
+    font-size: 14px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: border-color 0.2s ease, color 0.2s ease;
+  }
+  #cancelEditBtn:hover { border-color: var(--text-dim); color: var(--text); }
+
+  #formStatus { margin-top: 12px; font-size: 13px; min-height: 16px; }
+  #formStatus.error { color: var(--danger); }
+  #formStatus.success { color: var(--accent); }
+
+  .server-card {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 16px;
+    animation: fadeInUp 0.35s ease both;
+    transition: border-color 0.2s ease, transform 0.15s ease;
+  }
+  .server-card:hover { border-color: var(--accent-dim); transform: translateY(-2px); }
+  .server-card.removing { animation: cardRemove 0.3s ease forwards; overflow: hidden; }
+  .server-card.justSaved { animation: flashSuccess 1s ease; }
+  .server-card.disabled-server { opacity: 0.5; }
+  .server-card.disabled-server .server-name { color: var(--text-dim); }
+
+  .server-info { min-width: 0; }
+  .server-name { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+  .server-meta { font-size: 12px; color: var(--text-dim); }
+  .server-path {
+    font-size: 12px;
+    color: var(--info);
+    margin-top: 6px;
+    word-break: break-all;
+    font-family: 'Consolas', monospace;
+  }
+  .server-team {
+    display: inline-block;
+    background: rgba(63,185,80,0.12);
+    color: var(--accent);
+    font-size: 11px;
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-left: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  .server-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+  .icon-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 8px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-family: inherit;
+    transition: border-color 0.2s ease, color 0.2s ease;
+  }
+  .icon-btn.edit:hover { border-color: var(--info); color: var(--info); }
+  .icon-btn.delete:hover { border-color: var(--danger); color: var(--danger); }
+
+  #emptyState {
+    padding: 40px 20px;
+    text-align: center;
+    color: var(--text-dim);
+    font-size: 14px;
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+  <div class="header">
+    <div>
+      <h1>Server Manager</h1>
+      <div class="subtitle">Add, edit, or remove servers Node Sanity can scan</div>
+    </div>
+    <a class="nav-link" href="/dashboard">&larr; Back to Dashboard</a>
+  </div>
+
+  <div id="layout">
+    <div id="formPanel">
+      <div class="panel-title" id="formTitle">Add a New Server</div>
+
+      <label>Name</label>
+      <input type="text" id="fName" placeholder="e.g. Web Server 01">
+
+      <label>Hostname</label>
+      <input type="text" id="fHostname" placeholder="e.g. web01.local">
+
+      <label>Folder Path</label>
+      <input type="text" id="fBasePath" placeholder="e.g. C:/Users/you/Downloads">
+      <div class="hint">Use forward slashes. This is the folder that gets scanned.</div>
+
+      <label>Owner / Team (optional)</label>
+      <input type="text" id="fOwnerTeam" placeholder="e.g. backend">
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="fEnabled" checked>
+        <label for="fEnabled" class="checkbox-label">Enabled (visible in the dashboard's scan dropdown)</label>
+      </div>
+
+      <div id="formActions">
+        <button id="submitBtn" onclick="submitForm()">Add Server</button>
+        <button id="cancelEditBtn" onclick="cancelEdit()">Cancel</button>
+      </div>
+      <div id="formStatus"></div>
+    </div>
+
+    <div id="listPanel">
+      <div class="panel-title">Configured Servers</div>
+      <div id="serverList"></div>
+      <div id="emptyState">No servers configured yet - add one on the left.</div>
+    </div>
+  </div>
+
+<script>
+  const API_BASE = "";
+  let editingId = null;
+
+  async function loadServers() {
+    const list = document.getElementById("serverList");
+    const empty = document.getElementById("emptyState");
+    try {
+      const res = await fetch(`${API_BASE}/servers`);
+      const servers = await res.json();
+
+      if (!servers.length) {
+        list.innerHTML = "";
+        empty.style.display = "block";
+        return;
+      }
+      empty.style.display = "none";
+
+      list.innerHTML = servers.map((s, i) => `
+        <div class="server-card ${s.enabled === false ? 'disabled-server' : ''}" id="card-${s.id}" style="animation-delay:${Math.min(i,10)*0.04}s">
+          <div class="server-info">
+            <div class="server-name">${escapeHtml(s.name)}${s.owner_team ? `<span class="server-team">${escapeHtml(s.owner_team)}</span>` : ""}</div>
+            <div class="server-meta">${escapeHtml(s.hostname)} &middot; id: ${escapeHtml(s.id)}</div>
+            <div class="server-path">${escapeHtml(s.base_path)}</div>
+          </div>
+          <div class="server-actions">
+            <label class="checkbox-row" style="margin:0;">
+              <input type="checkbox" ${s.enabled !== false ? "checked" : ""} onchange="toggleEnabled('${s.id}', this.checked)">
+              <span class="checkbox-label">Enabled</span>
+            </label>
+            <button class="icon-btn edit" onclick='startEdit(${JSON.stringify(s)})'>Edit</button>
+            <button class="icon-btn delete" onclick="deleteServer('${s.id}', '${escapeHtml(s.name)}')">Delete</button>
+          </div>
+        </div>
+      `).join("");
+    } catch (err) {
+      list.innerHTML = "";
+      empty.style.display = "block";
+      empty.innerText = "Could not reach the backend - is the server running?";
+    }
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.innerText = str ?? "";
+    return div.innerHTML;
+  }
+
+  function setStatus(message, type) {
+    const status = document.getElementById("formStatus");
+    status.className = type;
+    status.innerText = message;
+  }
+
+  function readForm() {
+    return {
+      name: document.getElementById("fName").value.trim(),
+      hostname: document.getElementById("fHostname").value.trim(),
+      base_path: document.getElementById("fBasePath").value.trim(),
+      owner_team: document.getElementById("fOwnerTeam").value.trim() || null,
+      enabled: document.getElementById("fEnabled").checked,
+    };
+  }
+
+  function clearForm() {
+    document.getElementById("fName").value = "";
+    document.getElementById("fHostname").value = "";
+    document.getElementById("fBasePath").value = "";
+    document.getElementById("fOwnerTeam").value = "";
+    document.getElementById("fEnabled").checked = true;
+  }
+
+  async function submitForm() {
+    const payload = readForm();
+    if (!payload.name || !payload.hostname || !payload.base_path) {
+      setStatus("Name, hostname, and folder path are all required.", "error");
+      return;
+    }
+
+    const btn = document.getElementById("submitBtn");
+    btn.disabled = true;
+
+    try {
+      let res;
+      if (editingId) {
+        res = await fetch(`${API_BASE}/servers/${editingId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await fetch(`${API_BASE}/servers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+      const saved = await res.json();
+
+      setStatus(editingId ? "Server updated." : "Server added.", "success");
+      const wasEditing = editingId;
+      cancelEdit();
+      await loadServers();
+
+      const card = document.getElementById(`card-${saved.id}`);
+      if (card) card.classList.add("justSaved");
+
+    } catch (err) {
+      setStatus(`Could not save - ${err.message}`, "error");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function startEdit(server) {
+    editingId = server.id;
+    document.getElementById("fName").value = server.name;
+    document.getElementById("fHostname").value = server.hostname;
+    document.getElementById("fBasePath").value = server.base_path;
+    document.getElementById("fOwnerTeam").value = server.owner_team || "";
+    document.getElementById("fEnabled").checked = server.enabled !== false;
+    document.getElementById("formTitle").innerText = `Editing "${server.name}"`;
+    document.getElementById("submitBtn").innerText = "Save Changes";
+    document.getElementById("cancelEditBtn").style.display = "inline-block";
+    setStatus("", "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelEdit() {
+    editingId = null;
+    clearForm();
+    document.getElementById("formTitle").innerText = "Add a New Server";
+    document.getElementById("submitBtn").innerText = "Add Server";
+    document.getElementById("cancelEditBtn").style.display = "none";
+  }
+
+  async function toggleEnabled(id, checked) {
+    const card = document.getElementById(`card-${id}`);
+    try {
+      const res = await fetch(`${API_BASE}/servers/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: checked }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (card) card.classList.toggle("disabled-server", !checked);
+    } catch (err) {
+      setStatus(`Could not update - ${err.message}`, "error");
+      // Revert the checkbox visually since the change didn't actually save.
+      await loadServers();
+    }
+  }
+
+  async function deleteServer(id, name) {
+    if (!confirm(`Remove "${name}" from the server list?`)) return;
+
+    const card = document.getElementById(`card-${id}`);
+    if (card) card.classList.add("removing");
+
+    try {
+      const res = await fetch(`${API_BASE}/servers/${id}`, { method: "DELETE" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setTimeout(loadServers, 280);
+    } catch (err) {
+      setStatus(`Could not delete - ${err.message}`, "error");
+      if (card) card.classList.remove("removing");
+    }
+  }
+
+  loadServers();
+</script>
+
+</body>
+</html>

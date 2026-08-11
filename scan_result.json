@@ -1,0 +1,188 @@
+{
+    "folder_scanned": ".",
+    "total_files": 24,
+    "disk_usage": {
+        "total_gb": 475.77,
+        "used_gb": 176.22,
+        "free_gb": 299.56,
+        "percent_used": 37.0
+    },
+    "largest_file": {
+        "path": ".\\dashboard.html",
+        "size_mb": 0.05,
+        "age_days": 0.0,
+        "owner": "unknown",
+        "type": "other",
+        "ai_reason": "This file appears to be empty or has no significant content since it was last modified very recently."
+    },
+    "top_files": [
+        {
+            "path": ".\\dashboard.html",
+            "size_mb": 0.05,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\server.cpython-312.pyc",
+            "size_mb": 0.03,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\server.py",
+            "size_mb": 0.02,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\manage.html",
+            "size_mb": 0.01,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\policy_validator.py",
+            "size_mb": 0.01,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\scan_result.json",
+            "size_mb": 0.01,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\policy_validator.cpython-312.pyc",
+            "size_mb": 0.01,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\agents.json",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\ai_recommend.py",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\cleanup_planner.py",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\executor.py",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\models.py",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\policy.json",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\README.md",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\requirements.txt",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\scanner.py",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\scoring.py",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\servers.json",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\.vscode\\settings.json",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\agent_reports\\demo-agent.json",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\ai_recommend.cpython-312.pyc",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\cleanup_planner.cpython-312.pyc",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\executor.cpython-312.pyc",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\scoring.cpython-312.pyc",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        }
+    ]
+}
