@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Node Sanity — Sign In</title>
+<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+<link rel="apple-touch-icon" href="/static/logo-mark.png">
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #151b23;
+    --panel-alt: #1c232d;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa4af;
+    --accent: #3fb950;
+    --accent-dim: #2ea043;
+    --accent-glow: rgba(63, 185, 80, 0.35);
+    --danger: #f85149;
+    --info: #58a6ff;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: 'SF Mono', 'Consolas', 'Menlo', monospace;
+    background: var(--bg);
+    color: var(--text);
+    overflow-x: hidden;
+  }
+
+  #bgLayer {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 15% 20%, rgba(63,185,80,0.09) 0%, transparent 45%),
+      radial-gradient(circle at 85% 75%, rgba(88,166,255,0.07) 0%, transparent 45%),
+      var(--bg);
+  }
+  .glyph {
+    position: absolute;
+    color: var(--accent);
+    opacity: 0;
+    font-size: 14px;
+    font-weight: 700;
+    user-select: none;
+    animation: drift linear infinite;
+  }
+  @keyframes drift {
+    0%   { transform: translateY(110vh) translateX(0); opacity: 0; }
+    8%   { opacity: 0.35; }
+    92%  { opacity: 0.25; }
+    100% { transform: translateY(-10vh) translateX(var(--drift-x, 20px)); opacity: 0; }
+  }
+
+  #bgGrid {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image:
+      linear-gradient(rgba(63,185,80,0.045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(63,185,80,0.045) 1px, transparent 1px);
+    background-size: 42px 42px;
+    mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, black 20%, transparent 75%);
+    animation: gridPan 40s linear infinite;
+  }
+  @keyframes gridPan { from { background-position: 0 0; } to { background-position: 84px 84px; } }
+
+  #stage {
+    position: relative;
+    z-index: 1;
+    min-height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 20px;
+  }
+
+  #card {
+    width: 100%;
+    max-width: 400px;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 36px 32px 30px;
+    box-shadow: 0 30px 80px rgba(0,0,0,0.45), 0 0 0 1px rgba(63,185,80,0.04);
+    animation: cardEnter 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+    position: relative;
+  }
+  @keyframes cardEnter {
+    from { opacity: 0; transform: translateY(24px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+
+  #brandRow {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 26px;
+    animation: fadeInUp 0.5s ease 0.1s both;
+  }
+  @keyframes fadeInUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  #logoMark {
+    width: 42px;
+    height: 42px;
+    border-radius: 11px;
+    background: linear-gradient(160deg, #0d1117, #1c232d);
+    border: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    position: relative;
+    overflow: hidden;
+  }
+  #logoMark::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 30% 20%, rgba(63,185,80,0.25), transparent 60%);
+  }
+  #logoMark svg { width: 22px; height: 22px; position: relative; z-index: 1; }
+
+  #brandText h1 {
+    margin: 0;
+    font-size: 17px;
+    letter-spacing: -0.2px;
+    font-weight: 700;
+  }
+  #brandText .tagline {
+    font-size: 11.5px;
+    color: var(--text-dim);
+    margin-top: 2px;
+  }
+
+  #typewriter {
+    font-size: 12.5px;
+    color: var(--accent);
+    margin-bottom: 24px;
+    min-height: 18px;
+    white-space: nowrap;
+    overflow: hidden;
+    border-right: 2px solid var(--accent);
+    width: 0;
+    animation: typing 2.6s steps(34, end) 0.5s forwards, caretBlink 0.85s step-end infinite;
+  }
+  @keyframes typing { from { width: 0; } to { width: 34ch; } }
+  @keyframes caretBlink { 50% { border-color: transparent; } }
+
+  #tabRow {
+    display: flex;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    padding: 3px;
+    margin-bottom: 22px;
+    animation: fadeInUp 0.5s ease 0.15s both;
+    position: relative;
+  }
+  .tab-btn {
+    flex: 1;
+    background: transparent;
+    border: none;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 700;
+    padding: 9px 0;
+    border-radius: 7px;
+    cursor: pointer;
+    transition: color 0.2s ease;
+    position: relative;
+    z-index: 1;
+  }
+  .tab-btn.active { color: var(--bg); }
+  #tabIndicator {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: calc(50% - 3px);
+    height: calc(100% - 6px);
+    background: var(--accent);
+    border-radius: 7px;
+    transition: transform 0.32s cubic-bezier(0.65, 0, 0.35, 1);
+    box-shadow: 0 2px 14px var(--accent-glow);
+  }
+
+  .field {
+    margin-bottom: 16px;
+    animation: fadeInUp 0.5s ease both;
+  }
+  .field label {
+    display: block;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.6px;
+    color: var(--text-dim);
+    margin-bottom: 7px;
+  }
+  .field-input-wrap { position: relative; }
+  .field input {
+    width: 100%;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 11px 40px 11px 13px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+  }
+  .field input:focus {
+    outline: none;
+    border-color: var(--accent-dim);
+    box-shadow: 0 0 0 3px rgba(63,185,80,0.14);
+    background: #202834;
+  }
+  .field-icon {
+    position: absolute;
+    right: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-dim);
+    pointer-events: none;
+    transition: color 0.2s ease;
+  }
+  .field input:focus ~ .field-icon { color: var(--accent); }
+
+  #toggleConfirm { display: none; }
+  #toggleConfirm.show { display: block; }
+
+  #strengthWrap {
+    height: 4px;
+    background: var(--panel-alt);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 8px;
+    display: none;
+  }
+  #strengthWrap.show { display: block; }
+  #strengthBar {
+    height: 100%;
+    width: 0%;
+    border-radius: 2px;
+    background: var(--danger);
+    transition: width 0.3s ease, background 0.3s ease;
+  }
+  #strengthLabel {
+    font-size: 10.5px;
+    color: var(--text-dim);
+    margin-top: 5px;
+    display: none;
+  }
+  #strengthLabel.show { display: block; }
+
+  #submitBtn {
+    width: 100%;
+    background: var(--accent);
+    color: var(--bg);
+    border: none;
+    padding: 12px 20px;
+    font-size: 14px;
+    font-weight: 700;
+    border-radius: 9px;
+    cursor: pointer;
+    font-family: inherit;
+    margin-top: 6px;
+    transition: background 0.2s ease, transform 0.1s ease, box-shadow 0.2s ease;
+    position: relative;
+    overflow: hidden;
+  }
+  #submitBtn:hover { background: var(--accent-dim); box-shadow: 0 6px 24px var(--accent-glow); transform: translateY(-1px); }
+  #submitBtn:active { transform: scale(0.98); }
+  #submitBtn:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+
+  .spinner {
+    display: none;
+    width: 15px; height: 15px;
+    border: 2px solid rgba(13,17,23,0.35);
+    border-top-color: var(--bg);
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-right: 8px;
+    vertical-align: -2px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #submitBtn.loading .spinner { display: inline-block; }
+  #submitBtn.loading .btn-label { opacity: 0.85; }
+
+  #formMsg {
+    font-size: 12.5px;
+    margin-top: 14px;
+    min-height: 16px;
+    text-align: center;
+    transition: opacity 0.2s ease;
+  }
+  #formMsg.error { color: var(--danger); }
+  #formMsg.success { color: var(--accent); }
+
+  @keyframes shake {
+    10%, 90% { transform: translateX(-1px); }
+    20%, 80% { transform: translateX(2px); }
+    30%, 50%, 70% { transform: translateX(-4px); }
+    40%, 60% { transform: translateX(4px); }
+  }
+  #card.shake { animation: cardEnter 0.55s cubic-bezier(0.16, 1, 0.3, 1) both, shake 0.5s ease; }
+
+  #demoNote {
+    text-align: center;
+    font-size: 11px;
+    color: var(--text-dim);
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+    animation: fadeInUp 0.5s ease 0.2s both;
+  }
+  #demoNote code {
+    color: var(--info);
+    background: var(--panel-alt);
+    padding: 1px 5px;
+    border-radius: 4px;
+  }
+
+  #successOverlay {
+    position: absolute;
+    inset: 0;
+    background: var(--panel);
+    border-radius: 14px;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 14px;
+  }
+  #successOverlay.show { display: flex; animation: fadeInUp 0.3s ease; }
+  .checkmark-circle {
+    width: 60px; height: 60px;
+    border-radius: 50%;
+    border: 2.5px solid var(--accent);
+    display: flex; align-items: center; justify-content: center;
+    animation: popIn 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  @keyframes popIn { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+  .checkmark-circle svg { width: 28px; height: 28px; }
+  .checkmark-path {
+    stroke: var(--accent);
+    stroke-width: 3;
+    fill: none;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    stroke-dasharray: 30;
+    stroke-dashoffset: 30;
+    animation: drawCheck 0.4s ease 0.25s forwards;
+  }
+  @keyframes drawCheck { to { stroke-dashoffset: 0; } }
+  #successOverlay .success-text { font-size: 14px; color: var(--text); font-weight: 700; }
+  #successOverlay .success-sub { font-size: 12px; color: var(--text-dim); margin-top: -8px; }
+
+  @media (max-width: 480px) {
+    #card { padding: 28px 22px 24px; border-radius: 12px; }
+    #typewriter { font-size: 11.5px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.001ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.001ms !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div id="bgLayer">
+  <div id="bgGrid"></div>
+</div>
+
+<div id="stage">
+  <div id="card">
+
+    <div id="brandRow">
+      <div id="logoMark">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M6 6 L12 12 L6 18" stroke="#3fb950" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+          <line x1="13" y1="18" x2="18" y2="18" stroke="#2ea043" stroke-width="2.6" stroke-linecap="round"/>
+        </svg>
+      </div>
+      <div id="brandText">
+        <h1>Node Sanity</h1>
+        <div class="tagline">Disk intelligence for your fleet</div>
+      </div>
+    </div>
+
+    <div id="typewriter">$ analyzing disk usage patterns...</div>
+
+    <div id="tabRow">
+      <div id="tabIndicator"></div>
+      <button class="tab-btn active" id="loginTab" onclick="switchTab('login')">Sign In</button>
+      <button class="tab-btn" id="signupTab" onclick="switchTab('signup')">Sign Up</button>
+    </div>
+
+    <form id="authForm" onsubmit="return false;">
+      <div class="field" style="animation-delay:0.05s;">
+        <label for="username">Username</label>
+        <div class="field-input-wrap">
+          <input type="text" id="username" autocomplete="username" placeholder="e.g. mehul_s" required>
+          <span class="field-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="4" stroke="currentColor" stroke-width="1.8"/><path d="M4 20c0-4 3.6-6 8-6s8 2 8 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+          </span>
+        </div>
+      </div>
+
+      <div class="field" style="animation-delay:0.1s;">
+        <label for="password">Password</label>
+        <div class="field-input-wrap">
+          <input type="password" id="password" autocomplete="current-password" placeholder="••••••••" required>
+          <span class="field-icon" id="pwToggle" style="cursor:pointer; pointer-events:auto;" onclick="togglePw('password')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.8"/></svg>
+          </span>
+        </div>
+        <div id="strengthWrap"><div id="strengthBar"></div></div>
+        <div id="strengthLabel"></div>
+      </div>
+
+      <div class="field" id="toggleConfirm" style="animation-delay:0.15s;">
+        <label for="confirmPassword">Confirm Password</label>
+        <div class="field-input-wrap">
+          <input type="password" id="confirmPassword" autocomplete="new-password" placeholder="••••••••">
+          <span class="field-icon" id="pwToggle2" style="cursor:pointer; pointer-events:auto;" onclick="togglePw('confirmPassword')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z" stroke="currentColor" stroke-width="1.8"/><circle cx="12" cy="12" r="2.6" stroke="currentColor" stroke-width="1.8"/></svg>
+          </span>
+        </div>
+      </div>
+
+      <button type="submit" id="submitBtn" onclick="submitAuth()">
+        <span class="spinner"></span><span class="btn-label" id="submitLabel">Sign In</span>
+      </button>
+
+      <div id="formMsg"></div>
+    </form>
+
+    <div id="demoNote">
+      New here? Switch to <code>Sign Up</code> — accounts are stored locally on this server, nothing external.
+    </div>
+
+    <div id="successOverlay">
+      <div class="checkmark-circle">
+        <svg viewBox="0 0 24 24"><path class="checkmark-path" d="M5 13l4 4L19 7"/></svg>
+      </div>
+      <div class="success-text" id="successText">Welcome back</div>
+      <div class="success-sub" id="successSub">Redirecting to your dashboard…</div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+  const API_BASE = "";
+  let mode = "login";
+
+  if (localStorage.getItem("ns_token")) {
+    window.location.href = "/dashboard";
+  }
+
+  const GLYPHS = ["01", "10", ">_", "$", "0x1F", "rm -rf", "/tmp", "gzip", "df -h", "11", "00", "sudo"];
+  const bgLayer = document.getElementById("bgLayer");
+  for (let i = 0; i < 22; i++) {
+    const el = document.createElement("div");
+    el.className = "glyph";
+    el.textContent = GLYPHS[Math.floor(Math.random() * GLYPHS.length)];
+    el.style.left = `${Math.random() * 100}%`;
+    el.style.setProperty("--drift-x", `${(Math.random() - 0.5) * 60}px`);
+    el.style.animationDuration = `${14 + Math.random() * 16}s`;
+    el.style.animationDelay = `${Math.random() * -20}s`;
+    el.style.fontSize = `${11 + Math.random() * 8}px`;
+    bgLayer.appendChild(el);
+  }
+
+  const CAPTIONS = [
+    "$ analyzing disk usage patterns...",
+    "$ scanning for stale files...",
+    "$ policy validated. safe to proceed.",
+    "$ agents reporting in...",
+  ];
+  let capIndex = 0;
+  const typewriterEl = document.getElementById("typewriter");
+  function rotateCaption() {
+    capIndex = (capIndex + 1) % CAPTIONS.length;
+    typewriterEl.style.animation = "none";
+    void typewriterEl.offsetWidth;
+    typewriterEl.textContent = CAPTIONS[capIndex];
+    typewriterEl.style.animation = `typing 2.2s steps(${CAPTIONS[capIndex].length}, end) forwards, caretBlink 0.85s step-end infinite`;
+  }
+  setInterval(rotateCaption, 4200);
+
+  function switchTab(target) {
+    mode = target;
+    const indicator = document.getElementById("tabIndicator");
+    const loginTab = document.getElementById("loginTab");
+    const signupTab = document.getElementById("signupTab");
+    const confirmField = document.getElementById("toggleConfirm");
+    const strengthWrap = document.getElementById("strengthWrap");
+    const strengthLabel = document.getElementById("strengthLabel");
+    const submitLabel = document.getElementById("submitLabel");
+    const demoNote = document.getElementById("demoNote");
+
+    if (target === "login") {
+      indicator.style.transform = "translateX(0)";
+      loginTab.classList.add("active");
+      signupTab.classList.remove("active");
+      confirmField.classList.remove("show");
+      strengthWrap.classList.remove("show");
+      strengthLabel.classList.remove("show");
+      submitLabel.textContent = "Sign In";
+      document.getElementById("password").setAttribute("autocomplete", "current-password");
+      demoNote.innerHTML = 'New here? Switch to <code>Sign Up</code> — accounts are stored locally on this server, nothing external.';
+    } else {
+      indicator.style.transform = "translateX(100%)";
+      signupTab.classList.add("active");
+      loginTab.classList.remove("active");
+      confirmField.classList.add("show");
+      strengthWrap.classList.add("show");
+      strengthLabel.classList.add("show");
+      submitLabel.textContent = "Create Account";
+      document.getElementById("password").setAttribute("autocomplete", "new-password");
+      demoNote.innerHTML = 'Already have an account? Switch back to <code>Sign In</code>.';
+    }
+    document.getElementById("formMsg").textContent = "";
+    document.getElementById("formMsg").className = "";
+  }
+
+  function togglePw(inputId) {
+    const input = document.getElementById(inputId);
+    input.type = input.type === "password" ? "text" : "password";
+  }
+
+  document.getElementById("password").addEventListener("input", (e) => {
+    if (mode !== "signup") return;
+    const val = e.target.value;
+    let score = 0;
+    if (val.length >= 6) score += 1;
+    if (val.length >= 10) score += 1;
+    if (/[A-Z]/.test(val) && /[a-z]/.test(val)) score += 1;
+    if (/[0-9]/.test(val)) score += 1;
+    if (/[^A-Za-z0-9]/.test(val)) score += 1;
+
+    const bar = document.getElementById("strengthBar");
+    const label = document.getElementById("strengthLabel");
+    const pct = Math.min(100, (score / 5) * 100);
+    bar.style.width = `${pct}%`;
+
+    if (score <= 1) { bar.style.background = "var(--danger)"; label.textContent = "Weak"; }
+    else if (score <= 3) { bar.style.background = "#d29922"; label.textContent = "Okay"; }
+    else { bar.style.background = "var(--accent)"; label.textContent = "Strong"; }
+  });
+
+  async function submitAuth() {
+    const username = document.getElementById("username").value.trim();
+    const password = document.getElementById("password").value;
+    const confirmPassword = document.getElementById("confirmPassword").value;
+    const msg = document.getElementById("formMsg");
+    const btn = document.getElementById("submitBtn");
+    const card = document.getElementById("card");
+
+    msg.className = "";
+    msg.textContent = "";
+
+    if (!username || !password) {
+      showError("Username and password are required.");
+      return;
+    }
+    if (mode === "signup") {
+      if (password.length < 6) { showError("Password must be at least 6 characters."); return; }
+      if (password !== confirmPassword) { showError("Passwords don't match."); return; }
+    }
+
+    btn.disabled = true;
+    btn.classList.add("loading");
+
+    try {
+      const endpoint = mode === "signup" ? "/auth/signup" : "/auth/login";
+      const res = await fetch(`${API_BASE}${endpoint}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+
+      if (mode === "signup") {
+        const loginRes = await fetch(`${API_BASE}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        if (!loginRes.ok) throw new Error("Account created — please sign in.");
+        const data = await loginRes.json();
+        completeAuth(data, "Account created");
+      } else {
+        const data = await res.json();
+        completeAuth(data, "Welcome back");
+      }
+
+    } catch (err) {
+      showError(err.message);
+      btn.disabled = false;
+      btn.classList.remove("loading");
+      card.classList.remove("shake");
+      void card.offsetWidth;
+      card.classList.add("shake");
+    }
+  }
+
+  function completeAuth(data, title) {
+    localStorage.setItem("ns_token", data.token);
+    localStorage.setItem("ns_username", data.username);
+
+    document.getElementById("successText").textContent = title;
+    document.getElementById("successSub").textContent = `Signed in as ${data.username} — redirecting…`;
+    document.getElementById("successOverlay").classList.add("show");
+
+    setTimeout(() => { window.location.href = "/dashboard"; }, 900);
+  }
+
+  function showError(text) {
+    const msg = document.getElementById("formMsg");
+    msg.className = "error";
+    msg.textContent = text;
+  }
+
+  document.getElementById("authForm").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); submitAuth(); }
+  });
+</script>
+
+</body>
+</html>

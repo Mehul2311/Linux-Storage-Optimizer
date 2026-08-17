@@ -1,21 +1,23 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+<link rel="apple-touch-icon" href="/static/logo-mark.png">
 <meta charset="UTF-8">
 <title>Node Sanity - Server Manager</title>
 <style>
   :root {
-    --bg: #030907;
-    --panel: #071d12;
-    --panel-alt: #0d2a19;
-    --border: #1e4a2e;
-    --text: #b8ffce;
-    --text-dim: #5fa87c;
-    --accent: #39ff6e;
-    --accent-dim: #22c94e;
-    --accent-glow: rgba(57, 255, 110, 0.35);
-    --danger: #ff5f56;
-    --info: #45e0c4;
+    --bg: #0d1117;
+    --panel: #151b23;
+    --panel-alt: #1c232d;
+    --border: #2a323d;
+    --text: #e6edf3;
+    --text-dim: #9aa4af;
+    --accent: #3fb950;
+    --accent-dim: #2ea043;
+    --accent-glow: rgba(63, 185, 80, 0.35);
+    --danger: #f85149;
+    --info: #58a6ff;
   }
   * { box-sizing: border-box; }
 
@@ -261,7 +263,11 @@
       <h1>Server Manager</h1>
       <div class="subtitle">Add, edit, or remove servers Node Sanity can scan</div>
     </div>
-    <a class="nav-link" href="/dashboard">&larr; Back to Dashboard</a>
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span id="whoami" style="font-size:12px; color:var(--text-dim);"></span>
+      <a class="nav-link" href="/dashboard">&larr; Back to Dashboard</a>
+      <button class="nav-link" onclick="logout()" style="cursor:pointer; background:transparent; font-family:inherit;">Log out</button>
+    </div>
   </div>
 
   <div id="layout">
@@ -302,6 +308,29 @@
 
 <script>
   const API_BASE = "";
+
+  // ---------- Auth guard ----------
+  const authToken = localStorage.getItem("ns_token");
+  const authUsername = localStorage.getItem("ns_username");
+  if (!authToken) {
+    window.location.href = "/login";
+  } else {
+    document.getElementById("whoami").textContent = authUsername ? `${authUsername}` : "";
+  }
+
+  function authHeaders() {
+    return authToken ? { "Authorization": `Bearer ${authToken}` } : {};
+  }
+
+  async function logout() {
+    try {
+      await fetch(`${API_BASE}/auth/logout`, { method: "POST", headers: authHeaders() });
+    } catch (e) { /* fail open - still clear locally */ }
+    localStorage.removeItem("ns_token");
+    localStorage.removeItem("ns_username");
+    window.location.href = "/login";
+  }
+
   let editingId = null;
 
   async function loadServers() {
@@ -387,13 +416,13 @@
       if (editingId) {
         res = await fetch(`${API_BASE}/servers/${editingId}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify(payload),
         });
       } else {
         res = await fetch(`${API_BASE}/servers`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify(payload),
         });
       }
@@ -446,7 +475,7 @@
     try {
       const res = await fetch(`${API_BASE}/servers/${id}`, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders() },
         body: JSON.stringify({ enabled: checked }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);

@@ -12,16 +12,19 @@ before if you don't pass a server_id, so nothing that already depends
 on the old behavior breaks.
 """
 
+import hashlib
+import hmac
 import json
 import os
 import re
+import secrets
 import subprocess
 import sys
 import time
 from typing import List, Optional
 
 import requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -45,6 +48,9 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SERVERS_PATH = os.path.join(BASE_DIR, "servers.json")
 POLICY_PATH = os.path.join(BASE_DIR, "policy.json")
 AGENTS_PATH = os.path.join(BASE_DIR, "agents.json")
+USERS_PATH = os.path.join(BASE_DIR, "users.json")
+SESSIONS_PATH = os.path.join(BASE_DIR, "sessions.json")
+ACTIVITY_PATH = os.path.join(BASE_DIR, "activity_log.json")
 REPORTS_DIR = os.path.join(BASE_DIR, "agent_reports")
 os.makedirs(REPORTS_DIR, exist_ok=True)
 
@@ -69,6 +75,169 @@ def dashboard():
 def manage_page():
     """The Server Manager page - add/edit/delete servers via a form."""
     return FileResponse(os.path.join(BASE_DIR, "manage.html"))
+
+
+@app.get("/login")
+def login_page():
+    """The login / signup page - the front door of the app. The
+    dashboard and manage pages check localStorage for a session
+    token client-side and bounce back here if it's missing."""
+    return FileResponse(os.path.join(BASE_DIR, "login.html"))
+
+
+@app.get("/favicon.ico")
+def favicon():
+    return FileResponse(os.path.join(BASE_DIR, "static", "favicon.ico"))
+
+
+# ==================== Auth ====================
+# Deliberately simple, dependency-free auth: salted PBKDF2 password
+# hashes in users.json, opaque random session tokens in sessions.json.
+# Good enough for a project demo / small team tool running on a
+# trusted network - NOT a substitute for a real auth provider if this
+# were ever exposed on the open internet.
+
+def _load_users() -> dict:
+    if not os.path.exists(USERS_PATH):
+        return {}
+    with open(USERS_PATH, "r") as f:
+        return json.load(f)
+
+
+def _save_users(users: dict) -> None:
+    with open(USERS_PATH, "w") as f:
+        json.dump(users, f, indent=2)
+
+
+def _load_sessions() -> dict:
+    if not os.path.exists(SESSIONS_PATH):
+        return {}
+    with open(SESSIONS_PATH, "r") as f:
+        return json.load(f)
+
+
+def _save_sessions(sessions: dict) -> None:
+    with open(SESSIONS_PATH, "w") as f:
+        json.dump(sessions, f, indent=2)
+
+
+def _hash_password(password: str, salt: Optional[str] = None) -> str:
+    salt = salt or secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 200_000)
+    return f"{salt}${digest.hex()}"
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    try:
+        salt, _ = stored.split("$", 1)
+    except ValueError:
+        return False
+    return hmac.compare_digest(_hash_password(password, salt), stored)
+
+
+def _log_activity(actor: str, action: str, detail: str) -> None:
+    """Appends one entry to activity_log.json - powers the dashboard's
+    Activity Log panel so cleanup actions are auditable after the
+    fact, not just visible in the moment they happened."""
+    entries = []
+    if os.path.exists(ACTIVITY_PATH):
+        with open(ACTIVITY_PATH, "r") as f:
+            entries = json.load(f)
+    entries.append({
+        "timestamp": time.time(),
+        "actor": actor,
+        "action": action,
+        "detail": detail,
+    })
+    entries = entries[-200:]  # keep the log bounded
+    with open(ACTIVITY_PATH, "w") as f:
+        json.dump(entries, f, indent=2)
+
+
+def _current_user(authorization: Optional[str]) -> Optional[str]:
+    """Resolves a Bearer token to a username, or None if missing/invalid.
+    Endpoints that want to attribute an action to a user (not
+    strictly gate access) call this and fall back to 'unknown'."""
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization[len("Bearer "):]
+    sessions = _load_sessions()
+    session = sessions.get(token)
+    return session["username"] if session else None
+
+
+class SignupRequest(BaseModel):
+    username: str = Field(..., min_length=3, max_length=32)
+    password: str = Field(..., min_length=6)
+
+
+class LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
+@app.post("/auth/signup")
+def signup(payload: SignupRequest):
+    users = _load_users()
+    key = payload.username.lower()
+    if key in users:
+        raise HTTPException(status_code=409, detail="That username is already taken")
+
+    users[key] = {
+        "username": payload.username,
+        "password_hash": _hash_password(payload.password),
+        "created_at": time.time(),
+    }
+    _save_users(users)
+    _log_activity(payload.username, "signup", "New account created")
+    return {"status": "created", "username": payload.username}
+
+
+@app.post("/auth/login")
+def login(payload: LoginRequest):
+    users = _load_users()
+    user = users.get(payload.username.lower())
+    if not user or not _verify_password(payload.password, user["password_hash"]):
+        raise HTTPException(status_code=401, detail="Incorrect username or password")
+
+    token = secrets.token_hex(24)
+    sessions = _load_sessions()
+    sessions[token] = {"username": user["username"], "created_at": time.time()}
+    _save_sessions(sessions)
+    _log_activity(user["username"], "login", "Signed in")
+    return {"token": token, "username": user["username"]}
+
+
+@app.post("/auth/logout")
+def logout(authorization: Optional[str] = Header(None)):
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[len("Bearer "):]
+        sessions = _load_sessions()
+        if token in sessions:
+            username = sessions[token]["username"]
+            del sessions[token]
+            _save_sessions(sessions)
+            _log_activity(username, "logout", "Signed out")
+    return {"status": "logged out"}
+
+
+@app.get("/auth/me")
+def auth_me(authorization: Optional[str] = Header(None)):
+    username = _current_user(authorization)
+    if not username:
+        raise HTTPException(status_code=401, detail="Not signed in")
+    return {"username": username}
+
+
+@app.get("/activity")
+def get_activity(limit: int = 25):
+    """Recent activity feed - signups, logins, and cleanup executions
+    - newest first, for the dashboard's Activity Log panel."""
+    if not os.path.exists(ACTIVITY_PATH):
+        return []
+    with open(ACTIVITY_PATH, "r") as f:
+        entries = json.load(f)
+    return list(reversed(entries))[:limit]
 
 
 class ServerCreate(BaseModel):
@@ -281,6 +450,7 @@ class CleanupAction(BaseModel):
     age_days: float
     type: str
     owner: str = "unknown"
+    uid: Optional[int] = None
     reason: str = ""
 
 
@@ -318,7 +488,7 @@ def cleanup_plan(folder: Optional[str] = None, server_id: Optional[str] = None):
 
 
 @app.post("/cleanup-execute")
-def cleanup_execute(payload: CleanupExecuteRequest):
+def cleanup_execute(payload: CleanupExecuteRequest, authorization: Optional[str] = Header(None)):
     """
     Actually performs cleanup actions - the ONLY endpoint in this
     project allowed to touch a file. Every action is re-validated
@@ -331,11 +501,20 @@ def cleanup_execute(payload: CleanupExecuteRequest):
     permanently removed. Requires an explicit list of actions the
     user selected - nothing runs automatically.
     """
-    target_folder, _ = _resolve_target(payload.folder, payload.server_id)
+    target_folder, server_name = _resolve_target(payload.folder, payload.server_id)
     policy = _load_policy()
 
     actions = [a.model_dump() for a in payload.actions]
     result = execute_actions(actions, policy, target_folder)
+
+    actor = _current_user(authorization) or "unknown"
+    freed_mb = round(sum(a.get("size_mb", 0) for a in result["executed"]), 2)
+    _log_activity(
+        actor,
+        "cleanup-execute",
+        f"{server_name}: {len(result['executed'])} action(s) executed, "
+        f"{len(result['failed'])} failed, ~{freed_mb} MB freed",
+    )
     return result
 
 
@@ -513,7 +692,7 @@ class AgentExecuteRequest(BaseModel):
 
 
 @app.post("/agents/{hostname}/execute")
-def agents_execute(hostname: str, payload: AgentExecuteRequest):
+def agents_execute(hostname: str, payload: AgentExecuteRequest, authorization: Optional[str] = Header(None)):
     """
     Re-validates the selected actions centrally (defense in depth),
     then relays ONLY the validated ones to that specific agent's own
@@ -530,7 +709,10 @@ def agents_execute(hostname: str, payload: AgentExecuteRequest):
     scope = list({os.path.dirname(a["path"]) for a in actions}) or ["/"]
     validated = validate_plan(actions, policy, scope, check_exists=False)
 
+    actor = _current_user(authorization) or "unknown"
+
     if not validated["approved"]:
+        _log_activity(actor, "agent-execute", f"{hostname}: 0 actions approved centrally")
         return {"executed": [], "failed": [], "rejected_centrally": validated["rejected"]}
 
     callback_url = f"http://{agent['callback_host']}:{agent['agent_port']}/execute"
@@ -539,6 +721,14 @@ def agents_execute(hostname: str, payload: AgentExecuteRequest):
         response.raise_for_status()
         result = response.json()
         result["rejected_centrally"] = validated["rejected"]
+
+        freed_mb = round(sum(a.get("size_mb", 0) for a in result.get("executed", [])), 2)
+        _log_activity(
+            actor,
+            "agent-execute",
+            f"{hostname}: {len(result.get('executed', []))} action(s) executed, "
+            f"{len(result.get('failed', []))} failed, ~{freed_mb} MB freed",
+        )
         return result
     except requests.exceptions.RequestException as e:
         raise HTTPException(status_code=502, detail=f"Could not reach agent '{hostname}' at {callback_url}: {e}")

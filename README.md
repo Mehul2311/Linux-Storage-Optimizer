@@ -1,8 +1,9 @@
-# Disk Usage Analyzer — Fleet + Cleanup + Live Agents
+# Disk Usage Analyzer — Fleet + Cleanup + Live Agents + Auth
 
 Read-only-by-default disk analysis tool with an AI-assisted cleanup
 pipeline (delete/compress proposals, policy-validated, human-approved
-before anything runs), plus a real multi-server agent architecture.
+before anything runs), a real multi-server agent architecture, simple
+account auth, and an audit trail of every cleanup action.
 
 ## Two ways this monitors servers
 
@@ -20,7 +21,7 @@ before anything runs), plus a real multi-server agent architecture.
 
 Both flows end up in the same place: a policy-validated cleanup plan
 you review and approve from the dashboard, executed via the OS trash
-(never a permanent delete).
+(never a permanent delete), and logged to the Activity panel.
 
 ## Project structure
 
@@ -36,16 +37,20 @@ disk-analyzer/
   policy.json                     - The actual rules policy_validator enforces
   servers.json                     - Local-scan folder registry
   agents.json                       - Registered live agents (created automatically)
-  agent_reports/                     - Latest report per agent (created automatically)
-  dashboard.html                      - Main UI: scanning, filters, cleanup, live agents
-  manage.html                          - Add/edit/delete local-scan servers
-  models.py                             - Shared data contract for the team
-  agent/                                 - Separate deployable piece, see agent/README.md
+  users.json, sessions.json          - Account auth store (created automatically)
+  activity_log.json                   - Audit trail of signups/logins/cleanups (created automatically)
+  agent_reports/                       - Latest report per agent (created automatically)
+  dashboard.html                        - Main UI: scanning, filters, cleanup, live agents, activity log
+  manage.html                            - Add/edit/delete local-scan servers
+  login.html                              - Animated sign-in / sign-up page
+  models.py                                - Shared data contract for the team
+  static/favicon.ico, static/logo-mark.png  - Original terminal-themed icon
+  agent/                                     - Separate deployable piece, see agent/README.md
     agent_app.py
-    scanner.py
+    metadata.py
     local_executor.py
     policy_validator.py, policy_client.py
-    registration.py, metadata.py, user_mapper.py
+    registration.py, user_mapper.py
     config.yaml
 ```
 
@@ -62,7 +67,9 @@ pip install -r requirements.txt
 uvicorn server:app --port 8080 --reload
 ```
 
-Open `http://localhost:8080/dashboard`.
+Open `http://localhost:8080/login`, create an account, and you'll
+land on the dashboard. From there, "Manage Servers" and "Live Agents"
+are both one click away.
 
 ## How to run an agent
 
@@ -70,6 +77,21 @@ See `agent/README.md` - it's a separate `pip install` and a separate
 `uvicorn` process, meant to run on whatever machine you want
 monitored (can be the same PC for testing, or a real separate Linux
 server).
+
+## Accounts and activity
+
+Sign-in is required to reach the dashboard or server manager -
+`login.html` handles both sign-up and sign-in with a single form.
+Passwords are stored as salted PBKDF2 hashes (`users.json`), never in
+plain text, and sessions are opaque tokens (`sessions.json`) sent as
+a Bearer header. This is intentionally simple - a real deployment
+open to the internet would want a proper auth provider instead, but
+this is more than enough for a team project or a small trusted
+network.
+
+Every sign-in, sign-up, and cleanup execution (local or agent-based)
+is appended to `activity_log.json` and shown newest-first in the
+dashboard's Activity Log panel, so it's always clear who ran what.
 
 ## Safety model
 
@@ -87,3 +109,6 @@ server).
   age, and (for agent files) a minimum UID are all enforced from the
   same `policy.json` - there's no second, separately-maintained copy
   of "what's protected" anywhere in the project.
+- Every executed cleanup is attributed to the signed-in user and
+  recorded in the activity log, so actions are auditable after the
+  fact.

@@ -1,6 +1,8 @@
   <!DOCTYPE html>
   <html lang="en">
   <head>
+  <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+  <link rel="apple-touch-icon" href="/static/logo-mark.png">
   <meta charset="UTF-8">
   <title>Node Sanity - Disk Analyzer</title>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
@@ -529,6 +531,21 @@
   #cleanupBtn:hover { background: rgba(248,81,73,0.1); }
   #cleanupBtn:disabled { opacity: 0.5; cursor: not-allowed; }
 
+  #exportCsvBtn {
+    background: transparent;
+    color: var(--info);
+    border: 1px solid var(--info);
+    padding: 11px 20px;
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 8px;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.2s ease, color 0.2s ease;
+  }
+  #exportCsvBtn:hover { background: rgba(88,166,255,0.1); }
+  #exportCsvBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
   #cleanupPanel {
     display: none;
     background: var(--panel);
@@ -588,6 +605,34 @@
   #agentsPanel .panel-title { display: flex; justify-content: space-between; align-items: center; }
   #agentsRefresh { background: none; border: 1px solid var(--border); color: var(--text-dim); padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; }
   #agentsRefresh:hover { border-color: var(--accent-dim); color: var(--text); }
+
+  #activityPanel {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 22px;
+    margin-bottom: 22px;
+    animation: fadeInUp 0.35s ease;
+  }
+  #activityPanel .panel-title { display: flex; justify-content: space-between; align-items: center; }
+  #activityRefresh { background: none; border: 1px solid var(--border); color: var(--text-dim); padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer; font-family: inherit; }
+  #activityRefresh:hover { border-color: var(--accent-dim); color: var(--text); }
+  #activityEmptyState { color: var(--text-dim); font-size: 13px; padding: 8px 0; }
+  .activity-row {
+    display: flex; align-items: baseline; gap: 12px;
+    padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 6px; font-size: 13px;
+  }
+  .activity-row .a-time { color: var(--text-dim); font-size: 11px; flex-shrink: 0; width: 130px; }
+  .activity-row .a-actor { color: var(--info); font-weight: 700; flex-shrink: 0; }
+  .activity-row .a-action {
+    text-transform: uppercase; letter-spacing: 0.4px; font-size: 10px;
+    padding: 2px 7px; border-radius: 10px; flex-shrink: 0;
+  }
+  .activity-row .a-action.login, .activity-row .a-action.signup { background: rgba(88,166,255,0.12); color: var(--info); }
+  .activity-row .a-action.logout { background: rgba(154,164,175,0.12); color: var(--text-dim); }
+  .activity-row .a-action.cleanup-execute, .activity-row .a-action.agent-execute { background: rgba(63,185,80,0.12); color: var(--accent); }
+  .activity-row .a-detail { color: var(--text); flex: 1; }
 
   .agent-card {
     display: flex; align-items: center; gap: 14px;
@@ -656,7 +701,11 @@
         <h1>Node Sanity — Disk Analyzer</h1>
         <div class="subtitle">multi-server, read-only disk scan with AI-generated reasoning</div>
       </div>
-      <a class="nav-link" href="/manage">Manage Servers &rarr;</a>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <span id="whoami" style="font-size:12px; color:var(--text-dim);"></span>
+        <a class="nav-link" href="/manage">Manage Servers &rarr;</a>
+        <button class="nav-link" id="logoutBtn" onclick="logout()" style="cursor:pointer; background:transparent; font-family:inherit;">Log out</button>
+      </div>
     </div>
 
     <div id="controls">
@@ -666,6 +715,7 @@
       <input type="text" id="folderInput" placeholder="override folder (optional)">
       <button id="scanBtn" onclick="runScan()">Scan Now</button>
       <button id="cleanupBtn" onclick="generateCleanupPlan()" disabled>Suggest Cleanup</button>
+      <button id="exportCsvBtn" onclick="exportScanCsv()" disabled>Export CSV</button>
     </div>
 
     <div id="status"></div>
@@ -772,8 +822,47 @@
       </div>
     </div>
 
+    <div id="activityPanel">
+      <div class="panel-title">
+        <span>Activity Log</span>
+        <button id="activityRefresh" onclick="loadActivity()">Refresh</button>
+      </div>
+      <div style="font-size:13px; color:var(--text-dim); margin-bottom:14px;">
+        Who did what, and when — every sign-in and every cleanup execution (local or agent), most recent first.
+      </div>
+      <div id="activityList"></div>
+      <div id="activityEmptyState" style="display:none;">No activity recorded yet.</div>
+    </div>
+
   <script>
     const API_BASE = "";  // same origin - backend now serves this page directly
+
+    // ---------- Auth guard ----------
+    // Simple client-side gate: no valid session token, no dashboard.
+    // The token itself is still checked server-side wherever it
+    // matters (activity attribution) - this is just UX, not the
+    // actual security boundary.
+    const authToken = localStorage.getItem("ns_token");
+    const authUsername = localStorage.getItem("ns_username");
+    if (!authToken) {
+      window.location.href = "/login";
+    } else {
+      document.getElementById("whoami").textContent = authUsername ? `${authUsername}` : "";
+    }
+
+    function authHeaders() {
+      return authToken ? { "Authorization": `Bearer ${authToken}` } : {};
+    }
+
+    async function logout() {
+      try {
+        await fetch(`${API_BASE}/auth/logout`, { method: "POST", headers: authHeaders() });
+      } catch (e) { /* fail open - still clear locally */ }
+      localStorage.removeItem("ns_token");
+      localStorage.removeItem("ns_username");
+      window.location.href = "/login";
+    }
+
     let chartInstance = null;
     let allFiles = [];       // full unfiltered result from the last scan
     let currentServerId = "";
@@ -889,6 +978,7 @@
         applyFilters();
 
         document.getElementById("cleanupBtn").disabled = false;
+        document.getElementById("exportCsvBtn").disabled = !allFiles.length;
         document.getElementById("cleanupPanel").style.display = "none";
         cleanupData = null;
 
@@ -1028,7 +1118,7 @@
 
         const res = await fetch(`${API_BASE}/cleanup-execute`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify(body),
         });
         if (!res.ok) {
@@ -1399,7 +1489,7 @@
       try {
         const res = await fetch(`${API_BASE}/agents/${encodeURIComponent(expandedAgentHostname)}/execute`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json", ...authHeaders() },
           body: JSON.stringify({ actions: checked }),
         });
         if (!res.ok) {
@@ -1485,8 +1575,79 @@
       }
     }
 
+    // ---------- CSV export ----------
+    function exportScanCsv() {
+      if (!allFiles.length) return;
+
+      const headers = ["path", "size_mb", "age_days", "owner", "type"];
+      const rows = allFiles.map(f => headers.map(h => {
+        const val = (f[h] ?? "").toString().replace(/"/g, '""');
+        return `"${val}"`;
+      }).join(","));
+      const csv = [headers.join(","), ...rows].join("\n");
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, "-");
+      a.href = url;
+      a.download = `node-sanity-scan-${stamp}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    // ---------- Activity Log ----------
+    function timeAgo(ts) {
+      const seconds = Math.floor(Date.now() / 1000 - ts);
+      if (seconds < 60) return "just now";
+      const mins = Math.floor(seconds / 60);
+      if (mins < 60) return `${mins}m ago`;
+      const hours = Math.floor(mins / 60);
+      if (hours < 24) return `${hours}h ago`;
+      const days = Math.floor(hours / 24);
+      return `${days}d ago`;
+    }
+
+    async function loadActivity() {
+      const list = document.getElementById("activityList");
+      const empty = document.getElementById("activityEmptyState");
+      try {
+        const res = await fetch(`${API_BASE}/activity?limit=30`, { headers: authHeaders() });
+        const entries = await res.json();
+
+        if (!entries.length) {
+          list.innerHTML = "";
+          empty.style.display = "block";
+          return;
+        }
+        empty.style.display = "none";
+
+        list.innerHTML = entries.map(e => `
+          <div class="activity-row">
+            <span class="a-time">${timeAgo(e.timestamp)}</span>
+            <span class="a-actor">${escapeHtmlDash(e.actor)}</span>
+            <span class="a-action ${e.action}">${escapeHtmlDash(e.action)}</span>
+            <span class="a-detail">${escapeHtmlDash(e.detail)}</span>
+          </div>
+        `).join("");
+      } catch (err) {
+        list.innerHTML = "";
+        empty.style.display = "block";
+        empty.innerText = "Could not load activity — is the server running?";
+      }
+    }
+
+    function escapeHtmlDash(str) {
+      const div = document.createElement("div");
+      div.innerText = str ?? "";
+      return div.innerHTML;
+    }
+
     loadServers();
     loadAgents();
+    loadActivity();
   </script>
 
   </body>

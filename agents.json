@@ -4,8 +4,8 @@
     "callback_host": "127.0.0.1",
     "agent_port": 9999,
     "disk_threshold": 70.0,
-    "registered_at": 1786438701.2178607,
-    "last_seen": 1786438716.1767912,
+    "registered_at": 1786982602.518363,
+    "last_seen": 1786982618.4110465,
     "last_disk_usage": 88.4
   }
 }
