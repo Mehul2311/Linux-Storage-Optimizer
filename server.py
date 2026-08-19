@@ -368,6 +368,213 @@ def delete_server(server_id: str):
     return {"deleted": server_id}
 
 
+# ==================== Remote SSH Servers ====================
+# A "remote server" is a real machine reached over the network by IP
+# + credentials - the CENTRAL server initiates the connection when
+# you click Scan (pull model). This is different from both:
+#   - local-scan servers.json entries (a folder ON this machine)
+#   - agents (agent/ folder, PUSH their own reports in on a schedule,
+#     need software installed there ahead of time)
+# Use this when you just want to point at a real nearby PC/server by
+# IP and username without installing anything on it first - only
+# SSH access and python3 there are required. See ssh_scanner.py.
+
+REMOTE_SERVERS_PATH = os.path.join(BASE_DIR, "remote_servers.json")
+
+
+def _load_remote_servers() -> list[dict]:
+    if not os.path.exists(REMOTE_SERVERS_PATH):
+        return []
+    with open(REMOTE_SERVERS_PATH, "r") as f:
+        servers = json.load(f)
+    for s in servers:
+        s.setdefault("enabled", True)
+        s.setdefault("port", 22)
+    return servers
+
+
+def _save_remote_servers(servers: list[dict]) -> None:
+    with open(REMOTE_SERVERS_PATH, "w") as f:
+        json.dump(servers, f, indent=2)
+
+
+def _find_remote_server(server_id: str) -> Optional[dict]:
+    for s in _load_remote_servers():
+        if s["id"] == server_id:
+            return s
+    return None
+
+
+def _mask_remote_server(server: dict) -> dict:
+    """Never send the actual password back to the browser once saved -
+    the list/detail views only need to confirm ONE is set, not what
+    it is. key_path is just a filesystem path, not a secret itself,
+    so that's fine to show as-is."""
+    masked = {**server}
+    if masked.get("password"):
+        masked["password"] = None
+        masked["has_password"] = True
+    else:
+        masked["has_password"] = False
+    return masked
+
+
+class RemoteServerCreate(BaseModel):
+    name: str = Field(..., min_length=1)
+    host: str = Field(..., min_length=1, description="IP address or hostname")
+    port: int = 22
+    username: str = Field(..., min_length=1)
+    auth_method: str = Field(..., pattern="^(password|key)$")
+    password: Optional[str] = None
+    key_path: Optional[str] = None
+    base_path: str = Field(..., min_length=1, description="Folder on the remote machine to scan")
+    enabled: bool = True
+
+
+class RemoteServerUpdate(BaseModel):
+    name: Optional[str] = None
+    host: Optional[str] = None
+    port: Optional[int] = None
+    username: Optional[str] = None
+    auth_method: Optional[str] = None
+    password: Optional[str] = None
+    key_path: Optional[str] = None
+    base_path: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+@app.get("/remote-servers")
+def list_remote_servers(enabled_only: bool = False):
+    """Powers the dashboard's server dropdown (Remote/SSH group) and
+    the manage page's 'Remote SSH Servers' tab. Same enabled_only
+    convention as the local /servers endpoint."""
+    servers = _load_remote_servers()
+    if enabled_only:
+        servers = [s for s in servers if s.get("enabled", True)]
+    return [_mask_remote_server(s) for s in servers]
+
+
+@app.post("/remote-servers")
+def create_remote_server(payload: RemoteServerCreate, authorization: Optional[str] = Header(None)):
+    if payload.auth_method == "password" and not payload.password:
+        raise HTTPException(status_code=400, detail="Password is required when auth_method is 'password'")
+    if payload.auth_method == "key" and not payload.key_path:
+        raise HTTPException(status_code=400, detail="Key path is required when auth_method is 'key'")
+
+    servers = _load_remote_servers()
+    existing_ids = {s["id"] for s in servers}
+    new_id = _unique_id(_slugify(payload.name), existing_ids)
+
+    new_server = {"id": new_id, **payload.model_dump()}
+    servers.append(new_server)
+    _save_remote_servers(servers)
+
+    actor = _current_user(authorization) or "unknown"
+    _log_activity(actor, "remote-server-add", f"Added remote server '{payload.name}' ({payload.username}@{payload.host})")
+    return _mask_remote_server(new_server)
+
+
+@app.put("/remote-servers/{server_id}")
+def update_remote_server(server_id: str, payload: RemoteServerUpdate, authorization: Optional[str] = Header(None)):
+    servers = _load_remote_servers()
+    for s in servers:
+        if s["id"] == server_id:
+            updates = payload.model_dump(exclude_unset=True)
+            s.update(updates)
+            _save_remote_servers(servers)
+            actor = _current_user(authorization) or "unknown"
+            _log_activity(actor, "remote-server-update", f"Updated remote server '{s['name']}'")
+            return _mask_remote_server(s)
+    raise HTTPException(status_code=404, detail=f"Unknown remote server '{server_id}'")
+
+
+@app.delete("/remote-servers/{server_id}")
+def delete_remote_server(server_id: str, authorization: Optional[str] = Header(None)):
+    servers = _load_remote_servers()
+    remaining = [s for s in servers if s["id"] != server_id]
+    if len(remaining) == len(servers):
+        raise HTTPException(status_code=404, detail=f"Unknown remote server '{server_id}'")
+    _save_remote_servers(remaining)
+
+    actor = _current_user(authorization) or "unknown"
+    _log_activity(actor, "remote-server-delete", f"Removed remote server '{server_id}'")
+    return {"deleted": server_id}
+
+
+@app.post("/remote-servers/test-connection")
+def test_connection_adhoc(payload: RemoteServerCreate):
+    """Tests credentials WITHOUT saving anything - used by the 'Test
+    Connection' button while filling out the add-server form, before
+    you've committed to saving it."""
+    from ssh_scanner import test_connection
+    result = test_connection(
+        host=payload.host, port=payload.port, username=payload.username,
+        auth_method=payload.auth_method, password=payload.password, key_path=payload.key_path,
+    )
+    if result["status"] != "ok":
+        raise HTTPException(status_code=502, detail=result["message"])
+    return result
+
+
+@app.post("/remote-servers/{server_id}/test")
+def test_remote_server(server_id: str):
+    """Checks credentials work - connects and disconnects, no scan,
+    no file access on the remote machine."""
+    server = _find_remote_server(server_id)
+    if server is None:
+        raise HTTPException(status_code=404, detail=f"Unknown remote server '{server_id}'")
+
+    from ssh_scanner import test_connection
+    result = test_connection(
+        host=server["host"], port=server.get("port", 22), username=server["username"],
+        auth_method=server["auth_method"], password=server.get("password"), key_path=server.get("key_path"),
+    )
+    if result["status"] != "ok":
+        raise HTTPException(status_code=502, detail=result["message"])
+    return result
+
+
+@app.get("/remote-scan")
+def remote_scan_endpoint(id: str):
+    """
+    Connects over SSH to the remote server, scans its configured
+    base_path, and returns the SAME shape as the local /scan endpoint
+    (folder_scanned, total_files, disk_usage, top_files, etc.) so the
+    dashboard can render either source with the same rendering code.
+    Also runs the cleanup plan inline (candidates + policy check),
+    since a second SSH round-trip just to propose cleanup would be
+    wasteful - see ssh_scanner.remote_scan's docstring.
+    """
+    server = _find_remote_server(id)
+    if server is None:
+        raise HTTPException(status_code=404, detail=f"Unknown remote server '{id}'")
+
+    from ssh_scanner import remote_scan
+    try:
+        data = remote_scan(
+            host=server["host"], port=server.get("port", 22), username=server["username"],
+            auth_method=server["auth_method"], base_path=server["base_path"],
+            password=server.get("password"), key_path=server.get("key_path"),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Remote scan failed: {e}")
+
+    all_files = data.get("top_files", [])
+    data["available_owners"] = sorted({f.get("owner", "unknown") for f in all_files})
+    data["available_types"] = sorted({f.get("type", "other") for f in all_files})
+    data["server_id"] = id
+    data["server_name"] = server["name"]
+    data["kind"] = "remote"
+
+    policy = _load_policy()
+    candidates = build_cleanup_plan(all_files, policy)
+    plan = validate_plan(candidates, policy, server["base_path"], check_exists=False)
+    data["cleanup_approved"] = plan["approved"]
+    data["cleanup_rejected"] = plan["rejected"]
+
+    return data
+
+
 def _resolve_target(folder: Optional[str], server_id: Optional[str]) -> tuple[str, str]:
     """Returns (target_folder, server_name), same resolution rule /scan
     has always used - shared with /cleanup-plan so both agree on
@@ -458,6 +665,57 @@ class CleanupExecuteRequest(BaseModel):
     folder: Optional[str] = None
     server_id: Optional[str] = None
     actions: List[CleanupAction]
+
+
+class RemoteExecuteRequest(BaseModel):
+    actions: List[CleanupAction]
+
+
+@app.post("/remote-servers/{server_id}/execute")
+def remote_execute_endpoint(server_id: str, payload: RemoteExecuteRequest, authorization: Optional[str] = Header(None)):
+    """
+    Re-validates centrally, then sends the validated actions to the
+    remote machine to be executed there over SSH (and re-validated
+    AGAIN on that machine - see ssh_scanner.remote_execute's
+    docstring). The remote machine has no send2trash pip package
+    guaranteed, so "delete" moves the file into a .node_sanity_trash
+    folder inside the scanned base_path instead - still fully
+    reversible, just not via the OS Recycle Bin UI.
+    """
+    server = _find_remote_server(server_id)
+    if server is None:
+        raise HTTPException(status_code=404, detail=f"Unknown remote server '{server_id}'")
+
+    policy = _load_policy()
+    actions = [a.model_dump() for a in payload.actions]
+    validated = validate_plan(actions, policy, server["base_path"], check_exists=False)
+
+    actor = _current_user(authorization) or "unknown"
+
+    if not validated["approved"]:
+        _log_activity(actor, "remote-cleanup-execute", f"{server['name']}: 0 actions approved centrally")
+        return {"executed": [], "failed": [], "rejected_centrally": validated["rejected"]}
+
+    from ssh_scanner import remote_execute
+    try:
+        result = remote_execute(
+            host=server["host"], port=server.get("port", 22), username=server["username"],
+            auth_method=server["auth_method"], actions=validated["approved"], base_path=server["base_path"],
+            policy=policy, password=server.get("password"), key_path=server.get("key_path"),
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Remote execution failed: {e}")
+
+    result["rejected_centrally"] = validated["rejected"]
+
+    freed_mb = round(sum(a.get("size_mb", 0) for a in result.get("executed", [])), 2)
+    _log_activity(
+        actor,
+        "remote-cleanup-execute",
+        f"{server['name']}: {len(result.get('executed', []))} action(s) executed, "
+        f"{len(result.get('failed', []))} failed, ~{freed_mb} MB freed",
+    )
+    return result
 
 
 @app.post("/cleanup-plan")

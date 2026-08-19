@@ -5,23 +5,34 @@ pipeline (delete/compress proposals, policy-validated, human-approved
 before anything runs), a real multi-server agent architecture, simple
 account auth, and an audit trail of every cleanup action.
 
-## Two ways this monitors servers
+## Three ways this monitors servers
 
 1. **Local-scan servers** (`servers.json`, the dashboard's server
    dropdown) - folders the central server scans directly, on demand,
    when you click "Scan Now." Good for folders on the same machine
    the dashboard is running on.
 
-2. **Live Agents** (`agent/` folder, run separately on any machine)
+2. **Remote SSH servers** (`remote_servers.json`, added from Manage
+   Servers → "Remote SSH Servers") - point at a real nearby machine
+   by IP/hostname + username/password (or an SSH key). The central
+   server connects out over SSH whenever you click "Scan Now" and
+   runs the scan there (pull model) - nothing needs to be
+   pre-installed on that machine, just SSH access and `python3` on
+   its PATH. See `ssh_scanner.py`. "Delete" actions on a remote
+   machine move the file into a `.node_sanity_trash` folder under
+   the scanned base_path instead of the OS Recycle Bin, since
+   `send2trash` isn't guaranteed to be installed there.
+
+3. **Live Agents** (`agent/` folder, run separately on any machine)
    - a real background process that checks its own disk usage on an
    interval and PUSHES a report to the central server once past a
    threshold, without you needing to click anything. This is the
    piece that matches the original project blueprint's "Central AI
    Server + Linux Agent nodes" design. See `agent/README.md`.
 
-Both flows end up in the same place: a policy-validated cleanup plan
-you review and approve from the dashboard, executed via the OS trash
-(never a permanent delete), and logged to the Activity panel.
+All three flows end up in the same place: a policy-validated cleanup
+plan you review and approve from the dashboard, executed without ever
+permanently deleting anything, and logged to the Activity panel.
 
 ## Project structure
 
@@ -36,6 +47,8 @@ disk-analyzer/
   ai_recommend.py                - Ollama recommendation for agent-flagged files
   policy.json                     - The actual rules policy_validator enforces
   servers.json                     - Local-scan folder registry
+  ssh_scanner.py                    - Connects out over SSH, runs a stdlib-only scan/execute script remotely
+  remote_servers.json                - Remote SSH server registry (created automatically)
   agents.json                       - Registered live agents (created automatically)
   users.json, sessions.json          - Account auth store (created automatically)
   activity_log.json                   - Audit trail of signups/logins/cleanups (created automatically)
@@ -57,7 +70,7 @@ disk-analyzer/
 ## Requirements
 
 - Python 3.10+
-- `pip install -r requirements.txt` (central) - includes `send2trash` for safe deletion
+- `pip install -r requirements.txt` (central) - includes `send2trash` for safe local deletion and `paramiko` for SSH to remote servers
 - Ollama with `qwen2.5:3b` pulled, for AI reasoning and cleanup recommendations (optional - both `scanner.py` and `ai_recommend.py` fall back gracefully if it's unreachable)
 
 ## How to run (central server)

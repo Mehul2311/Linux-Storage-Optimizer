@@ -100,5 +100,263 @@
     "actor": "Mehul",
     "action": "login",
     "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787024051.262467,
+    "actor": "Mehul",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787025270.7493706,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787025430.6672297,
+    "actor": "Mehul",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787030900.3872044,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787031381.8126624,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787031582.016939,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787032112.339718,
+    "actor": "Mehul",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787032117.5819726,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787032204.928879,
+    "actor": "Mehul",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787032211.3340027,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787032963.2252707,
+    "actor": "Mehul",
+    "action": "remote-server-add",
+    "detail": "Added remote server 'Eric pc 1' (Anjeet PC@10.154.6.66)"
+  },
+  {
+    "timestamp": 1787033013.145644,
+    "actor": "Mehul",
+    "action": "remote-server-delete",
+    "detail": "Removed remote server 'eric-pc-1'"
+  },
+  {
+    "timestamp": 1787033220.3757432,
+    "actor": "Mehul",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787033233.6476588,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787033453.815469,
+    "actor": "Mehul",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787033460.5031607,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787033660.6354303,
+    "actor": "Mehul",
+    "action": "remote-server-add",
+    "detail": "Added remote server 'My Linux Server' (ubuntu@192.168.1.50)"
+  },
+  {
+    "timestamp": 1787033699.290265,
+    "actor": "Mehul",
+    "action": "remote-server-delete",
+    "detail": "Removed remote server 'my-linux-server'"
+  },
+  {
+    "timestamp": 1787033864.163292,
+    "actor": "Mehul",
+    "action": "remote-server-add",
+    "detail": "Added remote server 'Test Linux Server' (testuser@192.168.1.100)"
+  },
+  {
+    "timestamp": 1787033914.4563932,
+    "actor": "Mehul",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787033926.1495554,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787033934.8414338,
+    "actor": "Mehul",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787033979.6544964,
+    "actor": "Mehul23",
+    "action": "signup",
+    "detail": "New account created"
+  },
+  {
+    "timestamp": 1787033979.9551845,
+    "actor": "Mehul23",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787033984.2062945,
+    "actor": "Mehul23",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787033992.2682328,
+    "actor": "Mehul23",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787034165.3060303,
+    "actor": "Mehul23",
+    "action": "remote-server-update",
+    "detail": "Updated remote server 'Test Linux Server'"
+  },
+  {
+    "timestamp": 1787034169.0268033,
+    "actor": "Mehul23",
+    "action": "remote-server-update",
+    "detail": "Updated remote server 'Test Linux Server'"
+  },
+  {
+    "timestamp": 1787034170.1282527,
+    "actor": "Mehul23",
+    "action": "remote-server-update",
+    "detail": "Updated remote server 'Test Linux Server'"
+  },
+  {
+    "timestamp": 1787034170.6906216,
+    "actor": "Mehul23",
+    "action": "remote-server-update",
+    "detail": "Updated remote server 'Test Linux Server'"
+  },
+  {
+    "timestamp": 1787034176.0978968,
+    "actor": "Mehul23",
+    "action": "remote-server-update",
+    "detail": "Updated remote server 'Test Linux Server'"
+  },
+  {
+    "timestamp": 1787034489.602578,
+    "actor": "Mehul23",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787034497.5598454,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787034509.779844,
+    "actor": "Mehul",
+    "action": "remote-server-update",
+    "detail": "Updated remote server 'Test Linux Server'"
+  },
+  {
+    "timestamp": 1787034604.7145948,
+    "actor": "Mehul",
+    "action": "remote-server-update",
+    "detail": "Updated remote server 'Test Linux Server'"
+  },
+  {
+    "timestamp": 1787034646.4445703,
+    "actor": "Mehul",
+    "action": "remote-server-update",
+    "detail": "Updated remote server 'Test Linux Server'"
+  },
+  {
+    "timestamp": 1787034646.8294582,
+    "actor": "Mehul",
+    "action": "remote-server-update",
+    "detail": "Updated remote server 'Test Linux Server'"
+  },
+  {
+    "timestamp": 1787037535.4045866,
+    "actor": "Mehul",
+    "action": "remote-server-update",
+    "detail": "Updated remote server 'Test Linux Server'"
+  },
+  {
+    "timestamp": 1787038350.5836232,
+    "actor": "Mehul",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787038370.0875237,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787038381.2169812,
+    "actor": "Mehul",
+    "action": "logout",
+    "detail": "Signed out"
+  },
+  {
+    "timestamp": 1787039393.1076252,
+    "actor": "Mehul",
+    "action": "login",
+    "detail": "Signed in"
+  },
+  {
+    "timestamp": 1787039571.8893335,
+    "actor": "Mehul",
+    "action": "remote-server-update",
+    "detail": "Updated remote server 'Test Linux Server'"
   }
 ]

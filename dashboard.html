@@ -866,7 +866,8 @@
     let chartInstance = null;
     let allFiles = [];       // full unfiltered result from the last scan
     let currentServerId = "";
-    let lastScanParams = null;   // { folder } or { server_id } - reused by cleanup-plan/execute
+    let lastScanParams = null;   // { folder } or { server_id } or { remote_id } - reused by cleanup-plan/execute
+    let lastScanData = null;     // full response from the last scan, reused for remote cleanup plans
     let cleanupData = null;      // last response from /cleanup-plan
 
     // Size thresholds for automatic warning toasts - tweak these freely.
@@ -915,16 +916,36 @@
     }
 
     // ---------- Server dropdown ----------
+    let currentServerKind = "local"; // "local" or "remote" - which API the selected entry uses
+
     async function loadServers() {
       const select = document.getElementById("serverSelect");
       try {
-        const res = await fetch(`${API_BASE}/servers?enabled_only=true`);
-        const servers = await res.json();
-        select.innerHTML = servers.map(s =>
-          `<option value="${s.id}">${s.name} (${s.hostname})</option>`
+        const [localRes, remoteRes] = await Promise.all([
+          fetch(`${API_BASE}/servers?enabled_only=true`),
+          fetch(`${API_BASE}/remote-servers?enabled_only=true`, { headers: authHeaders() }).catch(() => null),
+        ]);
+        const localServers = await localRes.json();
+        const remoteServers = remoteRes && remoteRes.ok ? await remoteRes.json() : [];
+
+        let options = localServers.map(s =>
+          `<option value="local:${s.id}">${s.name} (${s.hostname})</option>`
         ).join("");
-        if (servers.length > 0) {
-          currentServerId = servers[0].id;
+
+        if (remoteServers.length) {
+          options += `<optgroup label="Remote (SSH)">` + remoteServers.map(s =>
+            `<option value="remote:${s.id}">🔒 ${s.name} (${s.host})</option>`
+          ).join("") + `</optgroup>`;
+        }
+
+        select.innerHTML = options || `<option value="">No servers configured</option>`;
+
+        if (localServers.length > 0) {
+          currentServerId = localServers[0].id;
+          currentServerKind = "local";
+        } else if (remoteServers.length > 0) {
+          currentServerId = remoteServers[0].id;
+          currentServerKind = "remote";
         }
       } catch (err) {
         select.innerHTML = `<option value="">Could not load servers — is the backend running?</option>`;
@@ -932,7 +953,9 @@
     }
 
     function onServerChange() {
-      currentServerId = document.getElementById("serverSelect").value;
+      const [kind, id] = document.getElementById("serverSelect").value.split(":");
+      currentServerKind = kind;
+      currentServerId = id;
     }
 
     // ---------- Scan ----------
@@ -948,16 +971,25 @@
       showSkeletonRows();
 
       try {
-        const params = new URLSearchParams();
+        let response;
+
         if (folderOverride) {
-          params.set("folder", folderOverride);
+          const params = new URLSearchParams({ folder: folderOverride });
           lastScanParams = { folder: folderOverride };
+          response = await fetch(`${API_BASE}/scan?${params.toString()}`);
+
+        } else if (currentServerKind === "remote" && currentServerId) {
+          status.innerText = "Connecting over SSH…";
+          lastScanParams = { remote_id: currentServerId };
+          response = await fetch(`${API_BASE}/remote-scan?id=${encodeURIComponent(currentServerId)}`, { headers: authHeaders() });
+
         } else if (currentServerId) {
-          params.set("server_id", currentServerId);
+          const params = new URLSearchParams({ server_id: currentServerId });
           lastScanParams = { server_id: currentServerId };
+          response = await fetch(`${API_BASE}/scan?${params.toString()}`);
         }
 
-        const response = await fetch(`${API_BASE}/scan?${params.toString()}`);
+        if (!response) throw new Error("No server selected");
         if (!response.ok) {
           const err = await response.json().catch(() => ({}));
           throw new Error(err.detail || `HTTP ${response.status}`);
@@ -973,6 +1005,7 @@
         renderStats(data);
         checkForWarnings(data);
         renderDiskBanner(data.disk_usage);
+        lastScanData = data;
 
         document.getElementById("filterBar").style.display = allFiles.length ? "flex" : "none";
         applyFilters();
@@ -1001,6 +1034,19 @@
       btn.innerText = "Analyzing…";
 
       try {
+        if (lastScanParams.remote_id && lastScanData) {
+          // Remote plan was already computed as part of the scan itself
+          // (avoids a second SSH round-trip) - just render what we have.
+          renderCleanupPlan({
+            approved: lastScanData.cleanup_approved || [],
+            rejected: lastScanData.cleanup_rejected || [],
+            policy: { min_age_days: "-", cleanup_types: [] },
+          });
+          btn.disabled = false;
+          btn.innerText = "Suggest Cleanup";
+          return;
+        }
+
         const params = new URLSearchParams();
         if (lastScanParams.folder) params.set("folder", lastScanParams.folder);
         else if (lastScanParams.server_id) params.set("server_id", lastScanParams.server_id);
@@ -1102,8 +1148,12 @@
       if (!checked.length) return;
 
       const summary = checked.map(a => `${a.action} — ${a.path}`).join("\n");
+      const isRemote = !!lastScanParams.remote_id;
       const confirmed = confirm(
-        `This sends ${checked.length} item(s) to the Recycle Bin / Trash (log files are compressed first, then the original is trashed). This can be undone from the Recycle Bin, but not from this app.\n\n${summary}\n\nProceed?`
+        (isRemote
+          ? `This sends ${checked.length} item(s) on the remote machine to a .node_sanity_trash folder there (via SSH, log files compressed first).`
+          : `This sends ${checked.length} item(s) to the Recycle Bin / Trash (log files are compressed first, then the original is trashed).`
+        ) + ` This can be undone manually, but not from this app.\n\n${summary}\n\nProceed?`
       );
       if (!confirmed) return;
 
@@ -1112,15 +1162,24 @@
       btn.innerText = "Working…";
 
       try {
-        const body = { actions: checked };
-        if (lastScanParams.folder) body.folder = lastScanParams.folder;
-        else if (lastScanParams.server_id) body.server_id = lastScanParams.server_id;
+        let res;
+        if (isRemote) {
+          res = await fetch(`${API_BASE}/remote-servers/${encodeURIComponent(lastScanParams.remote_id)}/execute`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify({ actions: checked }),
+          });
+        } else {
+          const body = { actions: checked };
+          if (lastScanParams.folder) body.folder = lastScanParams.folder;
+          else if (lastScanParams.server_id) body.server_id = lastScanParams.server_id;
 
-        const res = await fetch(`${API_BASE}/cleanup-execute`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", ...authHeaders() },
-          body: JSON.stringify(body),
-        });
+          res = await fetch(`${API_BASE}/cleanup-execute`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", ...authHeaders() },
+            body: JSON.stringify(body),
+          });
+        }
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
           throw new Error(err.detail || `HTTP ${res.status}`);

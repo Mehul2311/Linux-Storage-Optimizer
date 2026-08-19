@@ -254,6 +254,15 @@
     border-radius: 10px;
     display: none;
   }
+
+  #pageTabs { display: flex; gap: 8px; margin-bottom: 22px; }
+  .page-tab-btn {
+    background: var(--panel); border: 1px solid var(--border); color: var(--text-dim);
+    padding: 9px 18px; border-radius: 8px; font-family: inherit; font-size: 13px;
+    font-weight: 700; cursor: pointer; transition: border-color 0.2s ease, color 0.2s ease;
+  }
+  .page-tab-btn:hover { border-color: var(--accent-dim); color: var(--text); }
+  .page-tab-btn.active { border-color: var(--accent); color: var(--accent); background: var(--panel-alt); }
 </style>
 </head>
 <body>
@@ -268,6 +277,11 @@
       <a class="nav-link" href="/dashboard">&larr; Back to Dashboard</a>
       <button class="nav-link" onclick="logout()" style="cursor:pointer; background:transparent; font-family:inherit;">Log out</button>
     </div>
+  </div>
+
+  <div id="pageTabs">
+    <button class="page-tab-btn active" id="localPageTab" onclick="switchPageTab('local')">Local Folders</button>
+    <button class="page-tab-btn" id="remotePageTab" onclick="switchPageTab('remote')">Remote SSH Servers</button>
   </div>
 
   <div id="layout">
@@ -303,6 +317,65 @@
       <div class="panel-title">Configured Servers</div>
       <div id="serverList"></div>
       <div id="emptyState">No servers configured yet - add one on the left.</div>
+    </div>
+  </div>
+
+  <div id="remoteLayout" style="display:none;">
+    <div id="formPanel">
+      <div class="panel-title" id="remoteFormTitle">Connect a Real Server</div>
+      <div class="hint" style="margin-bottom:14px;">
+        Point this at a real nearby machine by IP + login. Node Sanity connects over SSH when you click Scan — nothing needs to be pre-installed there, just SSH access and python3.
+      </div>
+
+      <label>Name</label>
+      <input type="text" id="rName" placeholder="e.g. Office PC 2">
+
+      <label>Host (IP or hostname)</label>
+      <input type="text" id="rHost" placeholder="e.g. 192.168.1.42">
+
+      <label>Port</label>
+      <input type="text" id="rPort" placeholder="22" value="22">
+
+      <label>Username</label>
+      <input type="text" id="rUsername" placeholder="e.g. bob">
+
+      <label>Authentication</label>
+      <div class="checkbox-row" style="margin-top:0;">
+        <input type="radio" name="rAuthMethod" id="rAuthPassword" value="password" checked onchange="toggleAuthFields()">
+        <label for="rAuthPassword" class="checkbox-label">Password</label>
+        <input type="radio" name="rAuthMethod" id="rAuthKey" value="key" onchange="toggleAuthFields()" style="margin-left:14px;">
+        <label for="rAuthKey" class="checkbox-label">SSH Key</label>
+      </div>
+
+      <div id="rPasswordField">
+        <label>Password</label>
+        <input type="password" id="rPassword" placeholder="••••••••">
+      </div>
+      <div id="rKeyField" style="display:none;">
+        <label>Private Key Path</label>
+        <input type="text" id="rKeyPath" placeholder="e.g. C:/Users/you/.ssh/id_rsa">
+      </div>
+
+      <label>Folder Path (on the remote machine)</label>
+      <input type="text" id="rBasePath" placeholder="e.g. /var/log or /home/bob">
+
+      <div class="checkbox-row">
+        <input type="checkbox" id="rEnabled" checked>
+        <label for="rEnabled" class="checkbox-label">Enabled (visible in the dashboard's scan dropdown)</label>
+      </div>
+
+      <div id="formActions">
+        <button id="rTestBtn" onclick="testRemoteConnection()" style="background:transparent; border:1px solid var(--border); color:var(--info); flex:none; padding:11px 16px;">Test Connection</button>
+        <button id="rSubmitBtn" onclick="submitRemoteForm()">Add Server</button>
+        <button id="rCancelEditBtn" onclick="cancelRemoteEdit()" style="display:none;">Cancel</button>
+      </div>
+      <div id="rFormStatus" style="margin-top:12px; font-size:13px; min-height:16px;"></div>
+    </div>
+
+    <div id="listPanel">
+      <div class="panel-title">Connected Remote Servers</div>
+      <div id="remoteServerList"></div>
+      <div id="remoteEmptyState">No remote servers connected yet - add one on the left.</div>
     </div>
   </div>
 
@@ -504,6 +577,249 @@
   }
 
   loadServers();
+
+  // ---------- Page tabs ----------
+  function switchPageTab(which) {
+    document.getElementById("localPageTab").classList.toggle("active", which === "local");
+    document.getElementById("remotePageTab").classList.toggle("active", which === "remote");
+    document.getElementById("layout").style.display = which === "local" ? "flex" : "none";
+    document.getElementById("remoteLayout").style.display = which === "remote" ? "flex" : "none";
+    if (which === "remote") loadRemoteServers();
+  }
+
+  // ---------- Remote SSH servers ----------
+  let editingRemoteId = null;
+
+  function toggleAuthFields() {
+    const isKey = document.getElementById("rAuthKey").checked;
+    document.getElementById("rPasswordField").style.display = isKey ? "none" : "block";
+    document.getElementById("rKeyField").style.display = isKey ? "block" : "none";
+  }
+
+  function setRemoteStatus(message, type) {
+    const status = document.getElementById("rFormStatus");
+    status.style.color = type === "error" ? "var(--danger)" : "var(--accent)";
+    status.innerText = message;
+  }
+
+  function readRemoteForm() {
+    const authMethod = document.getElementById("rAuthKey").checked ? "key" : "password";
+    return {
+      name: document.getElementById("rName").value.trim(),
+      host: document.getElementById("rHost").value.trim(),
+      port: parseInt(document.getElementById("rPort").value.trim() || "22", 10),
+      username: document.getElementById("rUsername").value.trim(),
+      auth_method: authMethod,
+      password: authMethod === "password" ? document.getElementById("rPassword").value : null,
+      key_path: authMethod === "key" ? document.getElementById("rKeyPath").value.trim() : null,
+      base_path: document.getElementById("rBasePath").value.trim(),
+      enabled: document.getElementById("rEnabled").checked,
+    };
+  }
+
+  function clearRemoteForm() {
+    document.getElementById("rName").value = "";
+    document.getElementById("rHost").value = "";
+    document.getElementById("rPort").value = "22";
+    document.getElementById("rUsername").value = "";
+    document.getElementById("rAuthPassword").checked = true;
+    document.getElementById("rPassword").value = "";
+    document.getElementById("rKeyPath").value = "";
+    document.getElementById("rBasePath").value = "";
+    document.getElementById("rEnabled").checked = true;
+    toggleAuthFields();
+  }
+
+  async function loadRemoteServers() {
+    const list = document.getElementById("remoteServerList");
+    const empty = document.getElementById("remoteEmptyState");
+    try {
+      const res = await fetch(`${API_BASE}/remote-servers`, { headers: authHeaders() });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const servers = await res.json();
+
+      if (!servers.length) {
+        list.innerHTML = "";
+        empty.style.display = "block";
+        return;
+      }
+      empty.style.display = "none";
+
+      list.innerHTML = servers.map((s, i) => `
+        <div class="server-card ${s.enabled === false ? 'disabled-server' : ''}" id="remote-card-${s.id}" style="animation-delay:${Math.min(i,10)*0.04}s">
+          <div class="server-info">
+            <div class="server-name">${escapeHtml(s.name)}</div>
+            <div class="server-meta">${escapeHtml(s.username)}@${escapeHtml(s.host)}:${s.port} &middot; ${s.auth_method === "key" ? "SSH key" : "password"}</div>
+            <div class="server-path">${escapeHtml(s.base_path)}</div>
+          </div>
+          <div class="server-actions">
+            <label class="checkbox-row" style="margin:0;">
+              <input type="checkbox" ${s.enabled !== false ? "checked" : ""} onchange="toggleRemoteEnabled('${s.id}', this.checked)">
+              <span class="checkbox-label">Enabled</span>
+            </label>
+            <button class="icon-btn" style="border-color:var(--info); color:var(--info);" onclick="testExistingRemote('${s.id}')">Test</button>
+            <button class="icon-btn edit" onclick='startRemoteEdit(${JSON.stringify(s)})'>Edit</button>
+            <button class="icon-btn delete" onclick="deleteRemoteServer('${s.id}', '${escapeHtml(s.name)}')">Delete</button>
+          </div>
+        </div>
+      `).join("");
+    } catch (err) {
+      list.innerHTML = "";
+      empty.style.display = "block";
+      empty.innerText = "Could not reach the backend - is the server running?";
+    }
+  }
+
+  async function testRemoteConnection() {
+    const payload = readRemoteForm();
+    if (!payload.host || !payload.username) {
+      setRemoteStatus("Host and username are required to test.", "error");
+      return;
+    }
+    if (payload.auth_method === "password" && !payload.password) {
+      setRemoteStatus("Enter a password to test with (or switch to SSH key).", "error");
+      return;
+    }
+
+    const btn = document.getElementById("rTestBtn");
+    btn.disabled = true;
+    btn.innerText = "Testing…";
+    setRemoteStatus("", "");
+
+    try {
+      const res = await fetch(`${API_BASE}/remote-servers/test-connection`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ ...payload, base_path: payload.base_path || "." }),
+      });
+      const data = await res.json();
+      setRemoteStatus(res.ok ? "Connected successfully ✓" : `Connection failed - ${data.detail}`, res.ok ? "success" : "error");
+    } catch (err) {
+      setRemoteStatus(`Could not test - ${err.message}`, "error");
+    } finally {
+      btn.disabled = false;
+      btn.innerText = "Test Connection";
+    }
+  }
+
+  async function testExistingRemote(id) {
+    try {
+      const res = await fetch(`${API_BASE}/remote-servers/${id}/test`, { method: "POST", headers: authHeaders() });
+      const data = await res.json();
+      alert(res.ok ? "Connected successfully ✓" : `Connection failed - ${data.detail}`);
+    } catch (err) {
+      alert(`Could not test - ${err.message}`);
+    }
+  }
+
+  async function submitRemoteForm() {
+    const payload = readRemoteForm();
+    if (!payload.name || !payload.host || !payload.username || !payload.base_path) {
+      setRemoteStatus("Name, host, username, and folder path are all required.", "error");
+      return;
+    }
+    if (payload.auth_method === "password" && !payload.password && !editingRemoteId) {
+      setRemoteStatus("Password is required (or switch to SSH key).", "error");
+      return;
+    }
+
+    const btn = document.getElementById("rSubmitBtn");
+    btn.disabled = true;
+
+    try {
+      let res;
+      if (editingRemoteId) {
+        // Don't overwrite a saved password with an empty field if the
+        // user didn't type a new one while editing.
+        if (payload.auth_method === "password" && !payload.password) delete payload.password;
+        res = await fetch(`${API_BASE}/remote-servers/${editingRemoteId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        res = await fetch(`${API_BASE}/remote-servers`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...authHeaders() },
+          body: JSON.stringify(payload),
+        });
+      }
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || `HTTP ${res.status}`);
+      }
+
+      setRemoteStatus(editingRemoteId ? "Server updated." : "Server added.", "success");
+      cancelRemoteEdit();
+      await loadRemoteServers();
+
+    } catch (err) {
+      setRemoteStatus(`Could not save - ${err.message}`, "error");
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function startRemoteEdit(server) {
+    editingRemoteId = server.id;
+    document.getElementById("rName").value = server.name;
+    document.getElementById("rHost").value = server.host;
+    document.getElementById("rPort").value = server.port;
+    document.getElementById("rUsername").value = server.username;
+    document.getElementById("rAuthPassword").checked = server.auth_method !== "key";
+    document.getElementById("rAuthKey").checked = server.auth_method === "key";
+    document.getElementById("rPassword").value = "";
+    document.getElementById("rPassword").placeholder = server.has_password ? "•••••••• (unchanged - leave blank to keep)" : "••••••••";
+    document.getElementById("rKeyPath").value = server.key_path || "";
+    document.getElementById("rBasePath").value = server.base_path;
+    document.getElementById("rEnabled").checked = server.enabled !== false;
+    toggleAuthFields();
+    document.getElementById("remoteFormTitle").innerText = `Editing "${server.name}"`;
+    document.getElementById("rSubmitBtn").innerText = "Save Changes";
+    document.getElementById("rCancelEditBtn").style.display = "inline-block";
+    setRemoteStatus("", "");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function cancelRemoteEdit() {
+    editingRemoteId = null;
+    clearRemoteForm();
+    document.getElementById("remoteFormTitle").innerText = "Connect a Real Server";
+    document.getElementById("rSubmitBtn").innerText = "Add Server";
+    document.getElementById("rCancelEditBtn").style.display = "none";
+  }
+
+  async function toggleRemoteEnabled(id, checked) {
+    const card = document.getElementById(`remote-card-${id}`);
+    try {
+      const res = await fetch(`${API_BASE}/remote-servers/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({ enabled: checked }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (card) card.classList.toggle("disabled-server", !checked);
+    } catch (err) {
+      await loadRemoteServers();
+    }
+  }
+
+  async function deleteRemoteServer(id, name) {
+    if (!confirm(`Remove "${name}" from the remote server list? This does not delete anything on that machine.`)) return;
+
+    const card = document.getElementById(`remote-card-${id}`);
+    if (card) card.classList.add("removing");
+
+    try {
+      const res = await fetch(`${API_BASE}/remote-servers/${id}`, { method: "DELETE", headers: authHeaders() });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setTimeout(loadRemoteServers, 280);
+    } catch (err) {
+      setRemoteStatus(`Could not delete - ${err.message}`, "error");
+      if (card) card.classList.remove("removing");
+    }
+  }
 </script>
 
 </body>

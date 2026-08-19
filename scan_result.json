@@ -1,81 +1,228 @@
 {
-    "folder_scanned": "C:/Users/Mehul Kumar Sharma/Downloads",
-    "total_files": 9,
+    "folder_scanned": ".",
+    "total_files": 30,
     "disk_usage": {
-        "total_gb": 475.77,
-        "used_gb": 196.9,
-        "free_gb": 278.87,
-        "percent_used": 41.4
+        "total_gb": 475.65,
+        "used_gb": 178.66,
+        "free_gb": 296.99,
+        "percent_used": 37.6
     },
     "largest_file": {
-        "path": "C:/Users/Mehul Kumar Sharma/Downloads\\chromeremotedesktophost.msi",
-        "size_mb": 20.96,
-        "age_days": 386.0,
+        "path": ".\\dashboard.html",
+        "size_mb": 0.06,
+        "age_days": 0.2,
         "owner": "unknown",
         "type": "other",
-        "ai_reason": "The large size of the file suggests it is a substantial installation package for Chrome Remote Desktop Host application, which can be up to several megabytes in size."
+        "ai_reason": "The file is likely empty or not properly generated, given its size and the fact it was created 0.2 days ago."
     },
     "top_files": [
         {
-            "path": "C:/Users/Mehul Kumar Sharma/Downloads\\chromeremotedesktophost.msi",
-            "size_mb": 20.96,
-            "age_days": 386.0,
+            "path": ".\\dashboard.html",
+            "size_mb": 0.06,
+            "age_days": 0.2,
             "owner": "unknown",
             "type": "other"
         },
         {
-            "path": "C:/Users/Mehul Kumar Sharma/Downloads\\~WRL0005.tmp",
-            "size_mb": 0.11,
-            "age_days": 106.0,
+            "path": ".\\__pycache__\\server.cpython-312.pyc",
+            "size_mb": 0.05,
+            "age_days": 0.2,
             "owner": "unknown",
             "type": "other"
         },
         {
-            "path": "C:/Users/Mehul Kumar Sharma/Downloads\\Embrace the Quiet Journey - Inspirational Quote Wallpaper.jpg",
-            "size_mb": 0.04,
-            "age_days": 233.2,
-            "owner": "unknown",
-            "type": "other"
-        },
-        {
-            "path": "C:/Users/Mehul Kumar Sharma/Downloads\\Node_Sanity.one",
-            "size_mb": 0.04,
-            "age_days": 25.4,
-            "owner": "unknown",
-            "type": "other"
-        },
-        {
-            "path": "C:/Users/Mehul Kumar Sharma/Downloads\\~WRL0648.tmp",
+            "path": ".\\manage.html",
             "size_mb": 0.03,
-            "age_days": 130.0,
+            "age_days": 0.2,
             "owner": "unknown",
             "type": "other"
         },
         {
-            "path": "C:/Users/Mehul Kumar Sharma/Downloads\\Assembly Schedule for the month July and August.docx",
+            "path": ".\\server.py",
+            "size_mb": 0.03,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\login.html",
             "size_mb": 0.02,
-            "age_days": 84.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "log"
+        },
+        {
+            "path": ".\\activity_log.json",
+            "size_mb": 0.01,
+            "age_days": 0.0,
             "owner": "unknown",
             "type": "other"
         },
         {
-            "path": "C:/Users/Mehul Kumar Sharma/Downloads\\desktop.ini",
-            "size_mb": 0.0,
-            "age_days": 575.9,
+            "path": ".\\policy_validator.py",
+            "size_mb": 0.01,
+            "age_days": 0.2,
             "owner": "unknown",
             "type": "other"
         },
         {
-            "path": "C:/Users/Mehul Kumar Sharma/Downloads\\~$DFINALTILL10(13).pdf",
-            "size_mb": 0.0,
-            "age_days": 846.4,
+            "path": ".\\README.md",
+            "size_mb": 0.01,
+            "age_days": 0.2,
             "owner": "unknown",
             "type": "other"
         },
         {
-            "path": "C:/Users/Mehul Kumar Sharma/Downloads\\~$Presentation_-_Graph_Theory(3)[1].pptx",
+            "path": ".\\scan_result.json",
+            "size_mb": 0.01,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\ssh_scanner.py",
+            "size_mb": 0.01,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\policy_validator.cpython-312.pyc",
+            "size_mb": 0.01,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\ssh_scanner.cpython-312.pyc",
+            "size_mb": 0.01,
+            "age_days": 0.1,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\agents.json",
             "size_mb": 0.0,
-            "age_days": 291.3,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\ai_recommend.py",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\cleanup_planner.py",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\executor.py",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\models.py",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\policy.json",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\remote_servers.json",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\requirements.txt",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\scanner.py",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\scoring.py",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\servers.json",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\sessions.json",
+            "size_mb": 0.0,
+            "age_days": 0.0,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\users.json",
+            "size_mb": 0.0,
+            "age_days": 0.1,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\agent_reports\\demo-agent.json",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\ai_recommend.cpython-312.pyc",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\cleanup_planner.cpython-312.pyc",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\executor.cpython-312.pyc",
+            "size_mb": 0.0,
+            "age_days": 0.2,
+            "owner": "unknown",
+            "type": "other"
+        },
+        {
+            "path": ".\\__pycache__\\scoring.cpython-312.pyc",
+            "size_mb": 0.0,
+            "age_days": 0.2,
             "owner": "unknown",
             "type": "other"
         }

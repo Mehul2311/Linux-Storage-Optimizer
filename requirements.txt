@@ -3,3 +3,4 @@ starlette==0.38.6
 uvicorn[standard]==0.30.6
 requests==2.32.3
 send2trash==1.8.3
+paramiko==3.5.0
